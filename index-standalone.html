@@ -392,6 +392,29 @@ section {
 /* ==========================================================================
    CORE COMPETENCIES
    ========================================================================== */
+.competencies {
+  position: relative;
+  overflow: hidden;
+}
+
+.circuit-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 1;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent 0%, transparent 14%, black 18%, black 40%, transparent 46%);
+}
+
+.competencies .section-head,
+.competencies .comp-grid {
+  position: relative;
+  z-index: 1;
+}
+
 .comp-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -451,6 +474,32 @@ section {
 /* ==========================================================================
    ABOUT
    ========================================================================== */
+.about {
+  position: relative;
+  overflow: hidden;
+}
+
+.about .section-head {
+  margin-bottom: 64px;
+}
+
+.waveform-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.about .section-head,
+.about .about-grid {
+  position: relative;
+  z-index: 1;
+}
+
 .about-grid {
   display: grid;
   grid-template-columns: 0.85fr 1.15fr;
@@ -533,6 +582,54 @@ section {
 /* ==========================================================================
    EXPERIENCE LOG
    ========================================================================== */
+.experience {
+  position: relative;
+  overflow: hidden;
+}
+
+.experience .section-head {
+  margin-bottom: 72px;
+}
+
+.ticker-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.ticker-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ticker-label {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--text-faint);
+  transform: translate(0, -50%);
+}
+.ticker-label .ok { color: var(--green); }
+.ticker-label .warn { color: var(--amber); }
+
+.experience .section-head,
+.log {
+  position: relative;
+  z-index: 1;
+}
+
 .log {
   position: relative;
   border-left: 1px solid var(--line);
@@ -630,6 +727,51 @@ section {
 /* ==========================================================================
    LAB & PROJECTS
    ========================================================================== */
+.lab {
+  position: relative;
+  overflow: hidden;
+}
+
+.lab .section-head {
+  margin-bottom: 88px;
+}
+
+.pipeline-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.pipeline-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.pipeline-label {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.lab .section-head,
+.lab .lab-grid {
+  position: relative;
+  z-index: 1;
+}
+
 .lab-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -800,13 +942,32 @@ section {
    CONTACT / FOOTER
    ========================================================================== */
 .contact {
+  position: relative;
   text-align: center;
   padding-top: 80px;
   padding-bottom: 64px;
   border-top: 1px solid var(--line-soft);
+  overflow: hidden;
 }
 
-.contact-inner { display: flex; flex-direction: column; align-items: center; }
+.ping-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 1;
+  pointer-events: none;
+}
+
+.contact-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
 
 .contact h2 {
   font-family: var(--font-display);
@@ -1017,6 +1178,7 @@ section {
 
 <!-- ============ CORE COMPETENCIES ============ -->
 <section class="competencies" id="competencies">
+  <canvas id="circuit-canvas" class="circuit-canvas" aria-hidden="true"></canvas>
   <div class="section-head">
     <h2>Six disciplines, one stack</h2>
     <p class="section-sub">I came up through help desk, grew into systems and networking, and specialized in security,
@@ -1096,6 +1258,7 @@ section {
 
 <!-- ============ ABOUT / PHOTO + BIO VIDEO ============ -->
 <section class="about" id="about">
+  <canvas id="waveform-canvas" class="waveform-canvas" aria-hidden="true"></canvas>
   <div class="section-head">
     <h2>About</h2>
   </div>
@@ -1157,6 +1320,8 @@ section {
 
 <!-- ============ EXPERIENCE LOG ============ -->
 <section class="experience" id="experience">
+  <canvas id="ticker-canvas" class="ticker-canvas" aria-hidden="true"></canvas>
+  <div id="ticker-labels" class="ticker-labels" aria-hidden="true"></div>
   <div class="section-head">
     <h2>Experience</h2>
   </div>
@@ -1253,6 +1418,7 @@ section {
 
 <!-- ============ LAB & PROJECTS (GitHub / Portfolio placeholders) ============ -->
 <section class="lab" id="lab">
+  <canvas id="pipeline-canvas" class="pipeline-canvas" aria-hidden="true"></canvas>
   <div class="section-head">
     <h2>Lab &amp; Projects</h2>
     <p class="section-sub">Live writeups, detection rules, and lab builds, linked out to GitHub and project case studies as they go live.</p>
@@ -1368,6 +1534,7 @@ section {
 
 <!-- ============ CONTACT ============ -->
 <footer class="contact" id="contact">
+  <canvas id="ping-canvas" class="ping-canvas" aria-hidden="true"></canvas>
   <div class="contact-inner">
     <h2>Let's talk.</h2>
     <p>Open to network engineering, security engineering, and IT infrastructure roles.</p>
@@ -1866,6 +2033,718 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
   window.addEventListener('resize', () => {
     clearTimeout(exposureResizeTimeout);
     exposureResizeTimeout = setTimeout(init, 200);
+  });
+
+  init();
+})();
+
+// ===========================================================================
+// CIRCUIT TRACE ANIMATION — orthogonal PCB-style traces converging into the
+// competencies grid, with pulses traveling along them. Lives in the header
+// area above the cards (the cards themselves are opaque).
+// ===========================================================================
+(function () {
+  const canvas = document.getElementById('circuit-canvas');
+  if (!canvas) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ctx = canvas.getContext('2d');
+
+  let width, height, dpr;
+  let traces = [];
+  let pulses = [];
+  let rafId = null;
+
+  const LINE = 'rgba(91, 143, 176, 0.35)';
+  const LINE_DIM = 'rgba(91, 143, 176, 0.18)';
+  const PULSE = 'rgba(240, 169, 60, 0.95)';
+  const PULSE_GLOW = 'rgba(240, 169, 60, 0.4)';
+  const NODE = 'rgba(140, 185, 218, 0.6)';
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = rect.width;
+    height = rect.height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function buildTraces() {
+    // Measure the actual gap between section-head text and comp-grid live,
+    // rather than guessing fixed pixel values that break at different
+    // text-wrap widths.
+    const sectionEl = canvas.parentElement;
+    const headEl = sectionEl.querySelector('.section-head');
+    const gridEl = sectionEl.querySelector('.comp-grid');
+    const sectionTop = sectionEl.getBoundingClientRect().top;
+    const headBottom = headEl ? headEl.getBoundingClientRect().bottom - sectionTop : 200;
+    const gridTop = gridEl ? gridEl.getBoundingClientRect().top - sectionTop : 260;
+
+    const topY = headBottom + 6;
+    const bandHeight = Math.max(20, gridTop - topY - 6);
+    const isMobile = width < 640;
+    traces = [];
+
+    const laneCount = isMobile ? 4 : 6;
+    for (let i = 0; i < laneCount; i++) {
+      const startX = (width / (laneCount + 1)) * (i + 1) + (Math.random() - 0.5) * 30;
+      const midY = topY + bandHeight * (0.4 + Math.random() * 0.2);
+      const endX = startX + (Math.random() - 0.5) * 60;
+      const endY = topY + bandHeight;
+      // orthogonal path: down, then horizontal jog, then down again
+      const points = [
+        { x: startX, y: topY },
+        { x: startX, y: midY },
+        { x: endX, y: midY },
+        { x: endX, y: endY }
+      ];
+      traces.push({ points, hasNode: Math.random() < 0.6 });
+    }
+
+    pulses = traces.map((trace, i) => ({
+      traceIndex: i,
+      t: Math.random(),
+      speed: 0.0025 + Math.random() * 0.0025,
+      active: Math.random() < 0.7
+    }));
+  }
+
+  function pathLength(points) {
+    let len = 0;
+    for (let i = 1; i < points.length; i++) {
+      len += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    }
+    return len;
+  }
+
+  function pointAtT(points, t) {
+    const total = pathLength(points);
+    let dist = t * total;
+    for (let i = 1; i < points.length; i++) {
+      const segLen = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+      if (dist <= segLen) {
+        const segT = segLen === 0 ? 0 : dist / segLen;
+        return {
+          x: points[i - 1].x + (points[i].x - points[i - 1].x) * segT,
+          y: points[i - 1].y + (points[i].y - points[i - 1].y) * segT
+        };
+      }
+      dist -= segLen;
+    }
+    return points[points.length - 1];
+  }
+
+  function drawTracePath(points) {
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.stroke();
+  }
+
+  function step() {
+    ctx.clearRect(0, 0, width, height);
+
+    traces.forEach((trace, i) => {
+      ctx.strokeStyle = LINE_DIM;
+      ctx.lineWidth = 1;
+      drawTracePath(trace.points);
+
+      // corner nodes (small connection dots at bends)
+      if (trace.hasNode) {
+        const corner = trace.points[2];
+        ctx.beginPath();
+        ctx.arc(corner.x, corner.y, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = NODE;
+        ctx.fill();
+      }
+
+      // endpoint dot (where trace meets the grid)
+      const end = trace.points[trace.points.length - 1];
+      ctx.beginPath();
+      ctx.arc(end.x, end.y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = LINE;
+      ctx.fill();
+    });
+
+    pulses.forEach(p => {
+      if (!p.active) return;
+      if (!reduceMotion) p.t += p.speed;
+      if (p.t > 1) {
+        p.t = 0;
+        p.active = Math.random() < 0.7;
+      }
+      const trace = traces[p.traceIndex];
+      const pos = pointAtT(trace.points, p.t);
+
+      const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 7);
+      grad.addColorStop(0, PULSE_GLOW);
+      grad.addColorStop(1, 'rgba(240, 169, 60, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = PULSE;
+      ctx.fill();
+    });
+
+    rafId = requestAnimationFrame(step);
+  }
+
+  function init() {
+    resize();
+    buildTraces();
+    if (rafId) cancelAnimationFrame(rafId);
+    if (!reduceMotion) {
+      step();
+    } else {
+      ctx.clearRect(0, 0, width, height);
+      traces.forEach(trace => {
+        ctx.strokeStyle = LINE_DIM;
+        ctx.lineWidth = 1;
+        drawTracePath(trace.points);
+      });
+    }
+  }
+
+  let circuitResizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(circuitResizeTimeout);
+    circuitResizeTimeout = setTimeout(init, 200);
+  });
+
+  init();
+})();
+
+// ===========================================================================
+// BUILD PIPELINE ANIMATION — small blocks moving through CI/CD stages
+// (build -> test -> deploy), flashing on completion. Lives in the gap
+// between the section subtitle and the lab-grid cards. Text labels are
+// real HTML (not canvas fillText) to stay clear of fingerprinting blocks.
+// ===========================================================================
+(function () {
+  const canvas = document.getElementById('pipeline-canvas');
+  if (!canvas) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ctx = canvas.getContext('2d');
+
+  let width, height, dpr;
+  let stages = [];
+  let blocks = [];
+  let rafId = null;
+  let bandTop = 0, bandHeight = 60;
+
+  const LINE = 'rgba(91, 143, 176, 0.35)';
+  const STAGE_FILL = 'rgba(28, 35, 48, 0.9)';
+  const STAGE_STROKE = 'rgba(91, 143, 176, 0.4)';
+  const BLOCK = 'rgba(140, 185, 218, 0.9)';
+  const BLOCK_DONE = 'rgba(63, 182, 140, 0.95)';
+  const BLOCK_GLOW = 'rgba(63, 182, 140, 0.4)';
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = rect.width;
+    height = rect.height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function measureBand() {
+    const sectionEl = canvas.parentElement;
+    const headEl = sectionEl.querySelector('.section-head');
+    const gridEl = sectionEl.querySelector('.lab-grid');
+    const sectionTop = sectionEl.getBoundingClientRect().top;
+    const headBottom = headEl ? headEl.getBoundingClientRect().bottom - sectionTop : 200;
+    const gridTop = gridEl ? gridEl.getBoundingClientRect().top - sectionTop : 280;
+    const margin = 10;
+    bandTop = headBottom + margin;
+    // Never let the band exceed the actual available gap, even if that
+    // means a thinner-than-ideal strip.
+    bandHeight = Math.max(16, gridTop - bandTop - margin);
+  }
+
+  function buildStages() {
+    measureBand();
+    const isMobile = width < 640;
+    const labels = isMobile ? ['build', 'test', 'ship'] : ['build', 'test', 'scan', 'deploy'];
+    const margin = isMobile ? 24 : 60;
+    const usable = width - margin * 2;
+    const stageW = usable / labels.length;
+    stages = labels.map((label, i) => ({
+      label,
+      x: margin + stageW * i,
+      width: stageW,
+      y: bandTop,
+      height: bandHeight
+    }));
+
+    blocks = [];
+    const blockCount = isMobile ? 3 : 5;
+    for (let i = 0; i < blockCount; i++) {
+      blocks.push({
+        progress: Math.random(),
+        speed: 0.0009 + Math.random() * 0.0007,
+        lane: Math.random() * 0.6 + 0.2
+      });
+    }
+  }
+
+  function drawStageBox(stage) {
+    ctx.fillStyle = STAGE_FILL;
+    ctx.strokeStyle = STAGE_STROKE;
+    ctx.lineWidth = 0.5;
+    const pad = 6;
+    const x = stage.x + pad;
+    const w = stage.width - pad * 2;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x, stage.y, w, stage.height, 6) : ctx.rect(x, stage.y, w, stage.height);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  let stageLabelEls = [];
+
+  function step() {
+    ctx.clearRect(0, 0, width, height);
+
+    // connecting line through stage centers
+    ctx.beginPath();
+    ctx.moveTo(stages[0].x + 6, bandTop + bandHeight / 2);
+    ctx.lineTo(stages[stages.length - 1].x + stages[stages.length - 1].width - 6, bandTop + bandHeight / 2);
+    ctx.strokeStyle = LINE;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    stages.forEach(drawStageBox);
+
+    blocks.forEach(b => {
+      if (!reduceMotion) b.progress += b.speed;
+      if (b.progress > 1.08) {
+        b.progress = -0.08;
+        b.lane = Math.random() * 0.6 + 0.2;
+      }
+      const totalX = stages[0].x + 6 + (b.progress) * (stages[stages.length - 1].x + stages[stages.length - 1].width - 6 - (stages[0].x + 6));
+      const y = bandTop + bandHeight * b.lane;
+      const inFinalStage = b.progress > (stages.length - 1) / stages.length;
+      const color = inFinalStage ? BLOCK_DONE : BLOCK;
+
+      if (inFinalStage) {
+        const grad = ctx.createRadialGradient(totalX, y, 0, totalX, y, 9);
+        grad.addColorStop(0, BLOCK_GLOW);
+        grad.addColorStop(1, 'rgba(63, 182, 140, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(totalX, y, 9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.beginPath();
+      ctx.arc(totalX, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    });
+
+    rafId = requestAnimationFrame(step);
+  }
+
+  function createStageLabels() {
+    let container = document.getElementById('pipeline-labels');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'pipeline-labels';
+      container.className = 'pipeline-labels';
+      canvas.parentElement.insertBefore(container, canvas.nextSibling);
+    }
+    container.innerHTML = '';
+    stageLabelEls = stages.map(stage => {
+      const el = document.createElement('span');
+      el.className = 'pipeline-label';
+      el.textContent = stage.label;
+      container.appendChild(el);
+      return el;
+    });
+  }
+
+  function positionStageLabels() {
+    stages.forEach((stage, i) => {
+      const el = stageLabelEls[i];
+      if (!el) return;
+      el.style.left = (stage.x + stage.width / 2) + 'px';
+      el.style.top = (stage.y - 14) + 'px';
+    });
+  }
+
+  function init() {
+    resize();
+    buildStages();
+    createStageLabels();
+    positionStageLabels();
+    if (rafId) cancelAnimationFrame(rafId);
+    if (!reduceMotion) {
+      step();
+    } else {
+      ctx.clearRect(0, 0, width, height);
+      stages.forEach(drawStageBox);
+    }
+  }
+
+  let pipelineResizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(pipelineResizeTimeout);
+    pipelineResizeTimeout = setTimeout(init, 200);
+  });
+
+  init();
+})();
+
+// ===========================================================================
+// LOG TICKER ANIMATION — faint scrolling log lines in the gap between the
+// "Experience" heading and the first timeline entry. Quiet by design since
+// the log timeline below is already text-dense; this is a thin accent
+// strip, not a full-section overlay. Text via HTML, not canvas fillText.
+// ===========================================================================
+(function () {
+  const canvas = document.getElementById('ticker-canvas');
+  const labelsContainer = document.getElementById('ticker-labels');
+  if (!canvas) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ctx = canvas.getContext('2d');
+
+  let width, height, dpr;
+  let lines = [];
+  let rafId = null;
+  let bandTop = 0, bandHeight = 60;
+
+  const LINE_TICK = 'rgba(91, 143, 176, 0.5)';
+
+  const SAMPLE_LINES = [
+    { text: 'svc.heartbeat 200 OK', tone: 'ok' },
+    { text: 'auth.session renewed', tone: 'ok' },
+    { text: 'scan.vuln queue=0', tone: 'ok' },
+    { text: 'patch.window closed', tone: 'ok' },
+    { text: 'detect.rule matched', tone: 'warn' },
+    { text: 'siem.ingest 1248 ev/s', tone: 'ok' },
+    { text: 'edr.agent check-in', tone: 'ok' },
+    { text: 'backup.job completed', tone: 'ok' },
+    { text: 'fw.rule sync done', tone: 'ok' },
+    { text: 'iam.token rotated', tone: 'ok' }
+  ];
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = rect.width;
+    height = rect.height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function measureBand() {
+    const sectionEl = canvas.parentElement;
+    const headEl = sectionEl.querySelector('.section-head');
+    const logEl = sectionEl.querySelector('.log');
+    const sectionTop = sectionEl.getBoundingClientRect().top;
+    const headBottom = headEl ? headEl.getBoundingClientRect().bottom - sectionTop : 80;
+    const logTop = logEl ? logEl.getBoundingClientRect().top - sectionTop : 140;
+    const margin = 8;
+    bandTop = headBottom + margin;
+    bandHeight = Math.max(20, logTop - bandTop - margin);
+  }
+
+  function buildLines() {
+    measureBand();
+    const isMobile = width < 640;
+    const count = isMobile ? 2 : 3;
+    lines = [];
+    for (let i = 0; i < count; i++) {
+      const sample = SAMPLE_LINES[Math.floor(Math.random() * SAMPLE_LINES.length)];
+      lines.push({
+        x: Math.random() * width,
+        y: bandTop + (bandHeight / (count + 1)) * (i + 1),
+        text: sample.text,
+        tone: sample.tone,
+        speed: 0.15 + Math.random() * 0.1
+      });
+    }
+    createLineLabels();
+  }
+
+  let lineEls = [];
+  function createLineLabels() {
+    if (!labelsContainer) return;
+    labelsContainer.innerHTML = '';
+    lineEls = lines.map(line => {
+      const el = document.createElement('span');
+      el.className = 'ticker-label';
+      const dot = `<span class="${line.tone === 'ok' ? 'ok' : 'warn'}">&bull;</span> `;
+      el.innerHTML = dot + line.text;
+      labelsContainer.appendChild(el);
+      return el;
+    });
+  }
+
+  function step() {
+    ctx.clearRect(0, 0, width, height);
+
+    // faint baseline rule across the band
+    ctx.beginPath();
+    ctx.moveTo(0, bandTop + bandHeight - 2);
+    ctx.lineTo(width, bandTop + bandHeight - 2);
+    ctx.strokeStyle = 'rgba(91, 143, 176, 0.12)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    lines.forEach((line, i) => {
+      if (!reduceMotion) line.x -= line.speed;
+      if (line.x < -260) {
+        line.x = width + 40;
+        const sample = SAMPLE_LINES[Math.floor(Math.random() * SAMPLE_LINES.length)];
+        line.text = sample.text;
+        line.tone = sample.tone;
+        const el = lineEls[i];
+        if (el) {
+          const dot = `<span class="${line.tone === 'ok' ? 'ok' : 'warn'}">&bull;</span> `;
+          el.innerHTML = dot + line.text;
+        }
+      }
+      const el = lineEls[i];
+      if (el) {
+        el.style.left = line.x + 'px';
+        el.style.top = line.y + 'px';
+        el.style.opacity = (line.x < 20 || line.x > width - 80) ? '0.3' : '0.7';
+      }
+      ctx.beginPath();
+      ctx.arc(line.x - 10, line.y, 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = LINE_TICK;
+      ctx.fill();
+    });
+
+    rafId = requestAnimationFrame(step);
+  }
+
+  function init() {
+    resize();
+    buildLines();
+    if (rafId) cancelAnimationFrame(rafId);
+    if (!reduceMotion) {
+      step();
+    } else {
+      ctx.clearRect(0, 0, width, height);
+      lines.forEach((line, i) => {
+        const el = lineEls[i];
+        if (el) {
+          el.style.left = line.x + 'px';
+          el.style.top = line.y + 'px';
+        }
+      });
+    }
+  }
+
+  let tickerResizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(tickerResizeTimeout);
+    tickerResizeTimeout = setTimeout(init, 200);
+  });
+
+  init();
+})();
+
+// ===========================================================================
+// PING ANIMATION — expanding rings from the contact heading, like a network
+// ping or completed handshake. Quiet closing beat, no text needed.
+// ===========================================================================
+(function () {
+  const canvas = document.getElementById('ping-canvas');
+  if (!canvas) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ctx = canvas.getContext('2d');
+
+  let width, height, dpr;
+  let pings = [];
+  let rafId = null;
+  let spawnTimer = 0;
+  let centerY = 0;
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = rect.width;
+    height = rect.height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const sectionEl = canvas.parentElement;
+    const heading = sectionEl.querySelector('h2');
+    if (heading) {
+      const sectionTop = sectionEl.getBoundingClientRect().top;
+      const hRect = heading.getBoundingClientRect();
+      centerY = (hRect.top + hRect.bottom) / 2 - sectionTop;
+    } else {
+      centerY = height * 0.25;
+    }
+  }
+
+  function spawnPing() {
+    pings.push({ r: 4, opacity: 0.55 });
+  }
+
+  function step() {
+    ctx.clearRect(0, 0, width, height);
+    const cx = width / 2;
+
+    if (!reduceMotion) {
+      spawnTimer++;
+      if (spawnTimer > 130) {
+        spawnTimer = 0;
+        spawnPing();
+      }
+    }
+
+    pings.forEach(p => {
+      if (!reduceMotion) {
+        p.r += 0.9;
+        p.opacity *= 0.985;
+      }
+      ctx.beginPath();
+      ctx.arc(cx, centerY, p.r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(91, 143, 176, ${p.opacity})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+
+    pings = pings.filter(p => p.opacity > 0.02 && p.r < Math.max(width, height));
+
+    rafId = requestAnimationFrame(step);
+  }
+
+  function init() {
+    resize();
+    pings = [{ r: 4, opacity: 0.55 }];
+    spawnTimer = 0;
+    if (rafId) cancelAnimationFrame(rafId);
+    if (!reduceMotion) {
+      step();
+    } else {
+      ctx.clearRect(0, 0, width, height);
+    }
+  }
+
+  let pingResizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(pingResizeTimeout);
+    pingResizeTimeout = setTimeout(init, 200);
+  });
+
+  init();
+})();
+
+// ===========================================================================
+// WAVEFORM ANIMATION — thin animated signal line in the gap between the
+// "About" heading and the photo/video + bio grid. Suggests "signal" /
+// monitoring without competing with the placeholders or dense bio text.
+// ===========================================================================
+(function () {
+  const canvas = document.getElementById('waveform-canvas');
+  if (!canvas) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ctx = canvas.getContext('2d');
+
+  let width, height, dpr;
+  let rafId = null;
+  let phase = 0;
+  let bandTop = 0, bandHeight = 40;
+
+  const LINE = 'rgba(91, 143, 176, 0.45)';
+  const LINE_DIM = 'rgba(91, 143, 176, 0.18)';
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = rect.width;
+    height = rect.height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function measureBand() {
+    const sectionEl = canvas.parentElement;
+    const headEl = sectionEl.querySelector('.section-head');
+    const gridEl = sectionEl.querySelector('.about-grid');
+    const sectionTop = sectionEl.getBoundingClientRect().top;
+    const headBottom = headEl ? headEl.getBoundingClientRect().bottom - sectionTop : 80;
+    const gridTop = gridEl ? gridEl.getBoundingClientRect().top - sectionTop : 140;
+    const margin = 10;
+    bandTop = headBottom + margin;
+    bandHeight = Math.max(16, gridTop - bandTop - margin);
+  }
+
+  function drawWave(yOffset, amplitude, color, lineWidth, freq, phaseShift) {
+    const midY = bandTop + bandHeight / 2 + yOffset;
+    ctx.beginPath();
+    for (let x = 0; x <= width; x += 4) {
+      const y = midY + Math.sin((x * freq) + phase + phaseShift) * amplitude;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.stroke();
+  }
+
+  function step() {
+    ctx.clearRect(0, 0, width, height);
+
+    const amp = Math.min(bandHeight * 0.32, 10);
+    drawWave(0, amp, LINE_DIM, 1, 0.012, 0);
+    drawWave(0, amp * 0.7, LINE, 1.2, 0.012, Math.PI / 3);
+
+    if (!reduceMotion) phase += 0.025;
+
+    rafId = requestAnimationFrame(step);
+  }
+
+  function init() {
+    resize();
+    measureBand();
+    if (rafId) cancelAnimationFrame(rafId);
+    if (!reduceMotion) {
+      step();
+    } else {
+      ctx.clearRect(0, 0, width, height);
+      const amp = Math.min(bandHeight * 0.32, 10);
+      drawWave(0, amp, LINE_DIM, 1, 0.012, 0);
+    }
+  }
+
+  let waveformResizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(waveformResizeTimeout);
+    waveformResizeTimeout = setTimeout(init, 200);
   });
 
   init();
