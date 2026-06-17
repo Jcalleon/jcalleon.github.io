@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Jacob Calleon — Cybersecurity Engineer</title>
+<title>Jacob Calleon — Network, Infrastructure &amp; Security Engineer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
@@ -21,6 +21,7 @@
       <span class="nav-name">J.CALLEON</span>
     </div>
     <div class="nav-links">
+      <a href="#competencies">competencies</a>
       <a href="#experience">experience</a>
       <a href="#lab">lab_&amp;_projects</a>
       <a href="#certs">credentials</a>
@@ -32,6 +33,7 @@
 
 <!-- ============ HERO ============ -->
 <header class="hero" id="top">
+  <canvas id="network-canvas" class="network-canvas" aria-hidden="true"></canvas>
   <div class="hero-inner">
 
     <div class="hero-left">
@@ -42,18 +44,19 @@
       <h1 class="hero-title">
         Jacob Calleon
       </h1>
-      <p class="hero-role">Cybersecurity Engineer <span class="sep">/</span> Network &amp; Infrastructure Security</p>
+      <p class="hero-role">Network &amp; Infrastructure Engineer <span class="sep">/</span> Cybersecurity <span class="sep">/</span> IT Operations</p>
 
       <p class="hero-summary">
-        Five-plus years hardening enterprise environments — detection engineering, vulnerability management,
-        and security automation across hybrid cloud and on-prem infrastructure. I build the controls that
-        keep 10,000+ endpoints standing.
+        Five-plus years across the full IT stack — network engineering, systems administration, cloud
+        infrastructure, security engineering, and the help desk trenches that taught me how it all breaks.
+        I plan and run projects the same way I run incident response: scoped, tracked, and accountable.
       </p>
 
       <div class="hero-tags">
         <span class="tag">CISSP — ACTIVE</span>
         <span class="tag">CompTIA Network+</span>
         <span class="tag">M.S. Cybersecurity, Purdue</span>
+        <span class="tag">PMP — IN PROGRESS</span>
       </div>
 
       <div class="hero-actions">
@@ -106,6 +109,86 @@
   <div class="hero-scanline" aria-hidden="true"></div>
 </header>
 
+<!-- ============ CORE COMPETENCIES ============ -->
+<section class="competencies" id="competencies">
+  <div class="section-head">
+    <span class="eyebrow">// core_competencies</span>
+    <h2>Six disciplines, one stack</h2>
+    <p class="section-sub">I came up through help desk, grew into systems and networking, and specialized in security —
+      which means I can talk to a director and still SSH into the box. Project management ties it together.</p>
+  </div>
+
+  <div class="comp-grid">
+
+    <div class="comp-card">
+      <div class="comp-icon-row">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v6M12 13.5 5 16.8M12 13.5l7 3.3"/></svg>
+        <span class="comp-index">01</span>
+      </div>
+      <h3>Network Engineering</h3>
+      <p>Designed and hardened network environments across MSP client sites — switching, routing, layered
+        security controls, and infrastructure troubleshooting at scale.</p>
+      <div class="comp-proof"><span>10,000+ endpoints secured</span> <span class="sep">·</span> <span>InSync Computer Solutions</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-icon-row">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><circle cx="7" cy="7" r="0.8" fill="currentColor"/><circle cx="7" cy="17" r="0.8" fill="currentColor"/></svg>
+        <span class="comp-index">02</span>
+      </div>
+      <h3>Infrastructure &amp; Systems</h3>
+      <p>Windows and Linux administration, CIS hardening, disaster recovery, and business continuity design
+        for critical systems — the plumbing that everything else depends on.</p>
+      <div class="comp-proof"><span>90% patch compliance</span> <span class="sep">·</span> <span>The Smart Circle</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-icon-row">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+        <span class="comp-index">03</span>
+      </div>
+      <h3>Cybersecurity</h3>
+      <p>Detection engineering, vulnerability management, and security automation across SIEM and XDR
+        stacks — the specialty I've built the deepest expertise in.</p>
+      <div class="comp-proof"><span>82% vuln. reduction</span> <span class="sep">·</span> <span>RRMS</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-icon-row">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16v12H4z"/><path d="M9 20h6M12 16v4"/><circle cx="12" cy="10" r="2"/></svg>
+        <span class="comp-index">04</span>
+      </div>
+      <h3>Help Desk &amp; Support</h3>
+      <p>Where I started — frontline support, identity lifecycle management, and root-cause documentation
+        that actually reduced recurring tickets instead of just closing them.</p>
+      <div class="comp-proof"><span>1,000+ users supported</span> <span class="sep">·</span> <span>Apple · Keeco · Apogee</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-icon-row">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="comp-index">05</span>
+      </div>
+      <h3>Project Management</h3>
+      <p>Agile and Waterfall delivery, task assignment and team management, Gantt charts, RASCI matrices,
+        and risk assessments — PMP scheduled within the year.</p>
+      <div class="comp-proof"><span>PMP — in progress</span> <span class="sep">·</span> <span>Agile · Waterfall</span></div>
+    </div>
+
+    <div class="comp-card">
+      <div class="comp-icon-row">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 16a4 4 0 0 1-1-7.9A5.5 5.5 0 0 1 16.5 9 4.5 4.5 0 0 1 17 18H7z"/></svg>
+        <span class="comp-index">06</span>
+      </div>
+      <h3>Cloud &amp; Automation</h3>
+      <p>Azure security and conditional access, Terraform, and PowerShell/API-driven automation that turns
+        manual remediation into a repeatable pipeline.</p>
+      <div class="comp-proof"><span>5,000+ systems automated</span> <span class="sep">·</span> <span>Azure · Terraform</span></div>
+    </div>
+
+  </div>
+</section>
+
 <!-- ============ ABOUT / PHOTO + BIO VIDEO ============ -->
 <section class="about" id="about">
   <div class="section-head">
@@ -134,18 +217,20 @@
 
     <div class="about-text">
       <p class="lede">
-        I'm a defensive security engineer who got into this field because I like the version of the job
-        where things <em>don't</em> break — quietly, reliably, at scale.
+        I'm an IT generalist with a security specialty — I got into this field because I like the version
+        of the job where things <em>don't</em> break, whether that's a network, a server, or a project timeline.
       </p>
       <p>
-        Over the past five years I've moved from frontline IT and identity work into detection engineering,
-        vulnerability management, and security automation — building the kind of controls that hold up under
-        real attack scenarios, not just audits. I currently run an active home security lab covering detection
-        pipelines, MDM, and SIEM integrations to stay sharp on current tooling.
+        Over the past five years I've moved through help desk, systems administration, and network
+        engineering before specializing in detection engineering, vulnerability management, and security
+        automation. That path means I still think in infrastructure terms even when I'm deep in a SIEM —
+        and I run projects the same way: scoped, scheduled, and tracked. I currently run an active home
+        lab covering detection pipelines, MDM, and SIEM integrations to stay sharp on current tooling.
       </p>
       <p>
         I hold an active <strong>CISSP</strong> and a Master's in Cybersecurity Management from Purdue
-        (3.92 GPA), and I've placed in national cyber defense competitions including Hivestorm and CCDC.
+        (3.92 GPA), I'm a year out from sitting the <strong>PMP</strong>, and I've placed in national cyber
+        defense competitions including Hivestorm and CCDC.
       </p>
 
       <div class="qa-block">
@@ -362,6 +447,12 @@
       <span class="skills-label">frameworks</span>
       <div class="skills-pills">
         <span>CIS v8</span><span>NIST CSF</span><span>PCI-DSS</span><span>SOC 2</span>
+      </div>
+    </div>
+    <div class="skills-row">
+      <span class="skills-label">project mgmt</span>
+      <div class="skills-pills">
+        <span>Agile</span><span>Waterfall</span><span>Gantt Charts</span><span>RASCI</span><span>Risk Assessment</span><span>Team Management</span>
       </div>
     </div>
   </div>
