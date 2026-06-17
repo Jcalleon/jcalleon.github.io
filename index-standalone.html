@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jacob Calleon — Cybersecurity Engineer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   TOKENS
+   ========================================================================== */
+:root {
+  --graphite: #0D1117;
+  --panel: #161B22;
+  --panel-raised: #1C2330;
+  --line: #2A3140;
+  --line-soft: #1E2531;
+  --text: #E6E8EB;
+  --text-dim: #8B94A3;
+  --text-faint: #5C6573;
+  --amber: #F0A93C;
+  --amber-dim: #B8801F;
+  --steel: #5B8FB0;
+  --green: #3FB68C;
+
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+body {
+  background: var(--graphite);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+ul { list-style: none; }
+
+::selection { background: var(--amber); color: var(--graphite); }
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ==========================================================================
+   BACKGROUND GRID
+   ========================================================================== */
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
+}
+
+/* ==========================================================================
+   NAV
+   ========================================================================== */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(13, 17, 23, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.nav-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-id { display: flex; align-items: center; gap: 10px; }
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: blip 2.4s ease-in-out infinite;
+}
+
+@keyframes blip {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.nav-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.nav-links a { transition: color 0.15s ease; }
+.nav-links a:hover { color: var(--amber); }
+
+.nav-cta {
+  color: var(--text) !important;
+  border: 1px solid var(--line);
+  padding: 6px 14px;
+  border-radius: 4px;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.nav-cta:hover { border-color: var(--amber); color: var(--amber) !important; }
+
+/* ==========================================================================
+   HERO
+   ========================================================================== */
+.hero {
+  position: relative;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 88px 32px 96px;
+}
+
+.hero-inner {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 64px;
+  align-items: start;
+  position: relative;
+  z-index: 1;
+}
+
+.status-line { margin-bottom: 28px; }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--green);
+  background: rgba(63, 182, 140, 0.08);
+  border: 1px solid rgba(63, 182, 140, 0.25);
+  padding: 6px 12px;
+  border-radius: 100px;
+}
+
+.status-blip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: blip 2.4s ease-in-out infinite;
+}
+
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(42px, 5.5vw, 64px);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  margin-bottom: 12px;
+}
+
+.hero-role {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  color: var(--steel);
+  margin-bottom: 24px;
+  letter-spacing: 0.01em;
+}
+
+.hero-role .sep { color: var(--text-faint); margin: 0 6px; }
+
+.hero-summary {
+  font-size: 17px;
+  color: var(--text-dim);
+  max-width: 480px;
+  margin-bottom: 28px;
+}
+
+.hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 36px;
+}
+
+.tag {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--amber);
+  border: 1px solid rgba(240, 169, 60, 0.3);
+  background: rgba(240, 169, 60, 0.06);
+  padding: 5px 11px;
+  border-radius: 4px;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px 20px;
+  border-radius: 6px;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--amber);
+  color: var(--graphite);
+}
+.btn-primary:hover { transform: translateY(-1px); background: #f5b855; }
+
+.btn-ghost {
+  border: 1px solid var(--line);
+  color: var(--text);
+  position: relative;
+}
+.btn-ghost:hover { border-color: var(--text-dim); transform: translateY(-1px); }
+
+.soon {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--amber-dim);
+  background: rgba(240, 169, 60, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+/* ---- Readout panel ---- */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--panel-raised);
+}
+
+.panel-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.panel-meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.readout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.readout {
+  padding: 22px 18px;
+  border-right: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.readout:nth-child(2n) { border-right: none; }
+.readout:nth-last-child(-n+2) { border-bottom: none; }
+
+.readout-value {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1;
+}
+
+.readout-value .unit {
+  color: var(--amber);
+  font-size: 20px;
+}
+
+.readout-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.hero-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--line) 20%, var(--line) 80%, transparent);
+}
+
+/* ==========================================================================
+   SECTION SHARED
+   ========================================================================== */
+section {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 96px 32px;
+  position: relative;
+  z-index: 1;
+}
+
+.section-head { margin-bottom: 48px; max-width: 640px; }
+
+.eyebrow {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--steel);
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.section-head h2 {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3.5vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.section-sub {
+  margin-top: 12px;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
+/* ==========================================================================
+   ABOUT
+   ========================================================================== */
+.about-grid {
+  display: grid;
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 56px;
+  align-items: start;
+}
+
+.about-media {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.media-frame {
+  border-radius: 10px;
+  border: 1px dashed var(--line);
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.photo-frame { aspect-ratio: 4/5; }
+.video-frame { aspect-ratio: 16/9; }
+
+.placeholder-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-faint);
+  padding: 24px;
+}
+
+.placeholder-inner svg { color: var(--text-faint); }
+.placeholder-inner span:nth-child(2) { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); }
+.placeholder-sub { font-size: 12px; color: var(--text-faint); max-width: 220px; }
+
+.lede {
+  font-size: 19px;
+  font-weight: 500;
+  margin-bottom: 18px;
+  color: var(--text);
+}
+.lede em { color: var(--amber); font-style: normal; }
+
+.about-text p { color: var(--text-dim); margin-bottom: 16px; font-size: 15.5px; }
+.about-text strong { color: var(--text); }
+
+.qa-block {
+  margin-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 28px;
+}
+
+.qa { display: flex; flex-direction: column; gap: 6px; }
+
+.qa-q {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--steel);
+}
+
+.qa-a {
+  font-size: 14.5px;
+  color: var(--text-dim);
+}
+
+.placeholder-text {
+  color: var(--text-faint) !important;
+  font-style: italic;
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+}
+
+/* ==========================================================================
+   EXPERIENCE LOG
+   ========================================================================== */
+.log {
+  position: relative;
+  border-left: 1px solid var(--line);
+  margin-left: 6px;
+}
+
+.log-entry {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 32px;
+  padding: 0 0 48px 32px;
+  position: relative;
+}
+
+.log-entry::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--graphite);
+  border: 2px solid var(--steel);
+}
+
+.log-entry:last-child { padding-bottom: 0; }
+
+.log-time { display: flex; flex-direction: column; gap: 8px; padding-top: 2px; }
+
+.log-range {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.log-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--green);
+  background: rgba(63, 182, 140, 0.08);
+  border: 1px solid rgba(63, 182, 140, 0.25);
+  padding: 3px 8px;
+  border-radius: 100px;
+  width: fit-content;
+}
+
+.log-body h3 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.log-body h3 .dim { color: var(--text-faint); font-weight: 400; font-size: 16px; }
+
+.log-org {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+.log-org .sep { color: var(--text-faint); margin: 0 6px; }
+
+.log-body ul { display: flex; flex-direction: column; gap: 9px; margin-bottom: 16px; }
+
+.log-body li {
+  font-size: 14.5px;
+  color: var(--text-dim);
+  padding-left: 16px;
+  position: relative;
+}
+.log-body li::before {
+  content: '›';
+  position: absolute;
+  left: 0;
+  color: var(--steel);
+}
+.log-body li strong { color: var(--amber); font-weight: 600; }
+
+.log-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.log-stack span {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  padding: 4px 9px;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   LAB & PROJECTS
+   ========================================================================== */
+.lab-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.lab-card {
+  display: block;
+  background: var(--panel);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 24px;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.lab-card:hover { border-color: var(--steel); transform: translateY(-2px); }
+
+.lab-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  color: var(--text-faint);
+}
+
+.lab-card h3 {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.lab-card p {
+  font-size: 13.5px;
+  color: var(--text-faint);
+}
+
+/* ==========================================================================
+   CREDENTIALS
+   ========================================================================== */
+.cred-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 48px;
+}
+
+.cred-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 22px;
+}
+
+.cred-card-featured {
+  background: linear-gradient(160deg, rgba(240, 169, 60, 0.1), var(--panel) 60%);
+  border-color: rgba(240, 169, 60, 0.3);
+}
+
+.cred-status {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--amber);
+  margin-bottom: 12px;
+}
+.cred-status-pending { color: var(--text-faint); }
+
+.cred-card h3 {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.cred-card p { font-size: 13.5px; color: var(--text-dim); }
+
+.skills-band {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.skills-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 16px;
+  align-items: baseline;
+}
+
+.skills-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.skills-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.skills-pills span {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   CONTACT / FOOTER
+   ========================================================================== */
+.contact {
+  text-align: center;
+  padding-top: 80px;
+  padding-bottom: 64px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.contact-inner { display: flex; flex-direction: column; align-items: center; }
+
+.contact h2 {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4vw, 46px);
+  font-weight: 700;
+  margin: 12px 0 14px;
+}
+
+.contact p { color: var(--text-dim); margin-bottom: 32px; }
+
+.contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.contact-link {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  border: 1px solid var(--line);
+  padding: 10px 18px;
+  border-radius: 6px;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.contact-link:hover { border-color: var(--amber); color: var(--amber); }
+
+.location {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ==========================================================================
+   SUBTLE ENTRANCE (CSS-only, fires once on load via animation — never hides content)
+   ========================================================================== */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.log-entry, .lab-card, .cred-card {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .log-entry, .lab-card, .cred-card {
+    animation: fadeUp 0.5s ease both;
+  }
+  .log-entry:nth-of-type(1) { animation-delay: 0.02s; }
+  .log-entry:nth-of-type(2) { animation-delay: 0.06s; }
+  .log-entry:nth-of-type(3) { animation-delay: 0.10s; }
+  .log-entry:nth-of-type(4) { animation-delay: 0.14s; }
+  .log-entry:nth-of-type(5) { animation-delay: 0.18s; }
+  .lab-card:nth-of-type(1) { animation-delay: 0.02s; }
+  .lab-card:nth-of-type(2) { animation-delay: 0.06s; }
+  .lab-card:nth-of-type(3) { animation-delay: 0.10s; }
+  .lab-card:nth-of-type(4) { animation-delay: 0.14s; }
+}
+
+/* ==========================================================================
+   PLACEHOLDER HIGHLIGHT (JS toggled)
+   ========================================================================== */
+.placeholder-block, .placeholder-link {
+  position: relative;
+}
+
+.placeholder-flash {
+  outline: 2px solid var(--amber) !important;
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+@media (max-width: 980px) {
+  .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+  .about-grid { grid-template-columns: 1fr; }
+  .about-media { flex-direction: row; }
+  .photo-frame, .video-frame { flex: 1; }
+  .cred-grid { grid-template-columns: repeat(2, 1fr); }
+  .lab-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .nav-links { display: none; }
+  .nav-inner { padding: 16px 20px; }
+  .hero { padding: 56px 20px 64px; }
+  section { padding: 64px 20px; }
+  .readout-grid { grid-template-columns: 1fr 1fr; }
+  .readout-value { font-size: 24px; }
+  .about-media { flex-direction: column; }
+  .cred-grid { grid-template-columns: 1fr; }
+  .log-entry { grid-template-columns: 1fr; gap: 12px; }
+  .log { margin-left: 0; border-left: none; padding-left: 0; }
+  .log-entry { padding-left: 20px; border-left: 1px solid var(--line); margin-left: 4px; }
+  .skills-row { grid-template-columns: 1fr; gap: 8px; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- ============ BACKGROUND GRID / NOISE ============ -->
+<div class="bg-grid" aria-hidden="true"></div>
+
+<!-- ============ NAV ============ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-id">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="nav-name">J.CALLEON</span>
+    </div>
+    <div class="nav-links">
+      <a href="#experience">experience</a>
+      <a href="#lab">lab_&amp;_projects</a>
+      <a href="#certs">credentials</a>
+      <a href="#about">about</a>
+      <a href="#contact" class="nav-cta">contact</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ HERO ============ -->
+<header class="hero" id="top">
+  <div class="hero-inner">
+
+    <div class="hero-left">
+      <div class="status-line">
+        <span class="status-pill"><span class="status-blip"></span>STATUS: ACTIVE — OPEN TO WORK</span>
+      </div>
+
+      <h1 class="hero-title">
+        Jacob Calleon
+      </h1>
+      <p class="hero-role">Cybersecurity Engineer <span class="sep">/</span> Network &amp; Infrastructure Security</p>
+
+      <p class="hero-summary">
+        Five-plus years hardening enterprise environments — detection engineering, vulnerability management,
+        and security automation across hybrid cloud and on-prem infrastructure. I build the controls that
+        keep 10,000+ endpoints standing.
+      </p>
+
+      <div class="hero-tags">
+        <span class="tag">CISSP — ACTIVE</span>
+        <span class="tag">CompTIA Network+</span>
+        <span class="tag">M.S. Cybersecurity, Purdue</span>
+      </div>
+
+      <div class="hero-actions">
+        <a href="#contact" class="btn btn-primary">Get in touch</a>
+        <a href="#" class="btn btn-ghost placeholder-link" data-placeholder="github">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+          <span class="soon">soon</span>
+        </a>
+        <a href="#" class="btn btn-ghost placeholder-link" data-placeholder="resume">Download résumé</a>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="panel readout-panel">
+        <div class="panel-head">
+          <span class="panel-title">// impact_metrics.log</span>
+          <span class="panel-meta">live</span>
+        </div>
+        <div class="readout-grid">
+          <div class="readout">
+            <span class="readout-value">82<span class="unit">%</span></span>
+            <span class="readout-label">reduction in exploitable vulnerabilities</span>
+          </div>
+          <div class="readout">
+            <span class="readout-value">100K<span class="unit">+</span></span>
+            <span class="readout-label">vulnerabilities remediated, hybrid &amp; on-prem</span>
+          </div>
+          <div class="readout">
+            <span class="readout-value">10K<span class="unit">+</span></span>
+            <span class="readout-label">endpoints secured across environments</span>
+          </div>
+          <div class="readout">
+            <span class="readout-value">90<span class="unit">%</span></span>
+            <span class="readout-label">patch compliance, enterprise VM program</span>
+          </div>
+          <div class="readout">
+            <span class="readout-value">5K<span class="unit">+</span></span>
+            <span class="readout-label">systems automated via PowerShell &amp; APIs</span>
+          </div>
+          <div class="readout">
+            <span class="readout-value">1K<span class="unit">+</span></span>
+            <span class="readout-label">platforms integrated into SIEM architecture</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div class="hero-scanline" aria-hidden="true"></div>
+</header>
+
+<!-- ============ ABOUT / PHOTO + BIO VIDEO ============ -->
+<section class="about" id="about">
+  <div class="section-head">
+    <span class="eyebrow">// who_am_i</span>
+    <h2>About</h2>
+  </div>
+
+  <div class="about-grid">
+    <div class="about-media">
+      <div class="media-frame photo-frame placeholder-block" data-placeholder="photo">
+        <div class="placeholder-inner">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+          <span>Headshot goes here</span>
+          <span class="placeholder-sub">Upload a photo to replace this panel</span>
+        </div>
+      </div>
+
+      <div class="media-frame video-frame placeholder-block" data-placeholder="video">
+        <div class="placeholder-inner">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="9 7 9 17 16 12 9 7" fill="currentColor" stroke="none"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
+          <span>Intro video goes here</span>
+          <span class="placeholder-sub">A 60–90s clip answering "tell me about yourself" &amp; "why security?"</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="about-text">
+      <p class="lede">
+        I'm a defensive security engineer who got into this field because I like the version of the job
+        where things <em>don't</em> break — quietly, reliably, at scale.
+      </p>
+      <p>
+        Over the past five years I've moved from frontline IT and identity work into detection engineering,
+        vulnerability management, and security automation — building the kind of controls that hold up under
+        real attack scenarios, not just audits. I currently run an active home security lab covering detection
+        pipelines, MDM, and SIEM integrations to stay sharp on current tooling.
+      </p>
+      <p>
+        I hold an active <strong>CISSP</strong> and a Master's in Cybersecurity Management from Purdue
+        (3.92 GPA), and I've placed in national cyber defense competitions including Hivestorm and CCDC.
+      </p>
+
+      <div class="qa-block">
+        <div class="qa">
+          <span class="qa-q">Why security, specifically?</span>
+          <span class="qa-a placeholder-text" data-placeholder="qa-why">[ Replace with your own answer — this is the kind of question interviewers always ask first. ]</span>
+        </div>
+        <div class="qa">
+          <span class="qa-q">What's a problem you're proud of solving?</span>
+          <span class="qa-a placeholder-text" data-placeholder="qa-proud">[ Replace with a specific story — the 82% vulnerability reduction or the CrowdStrike migration are good candidates. ]</span>
+        </div>
+        <div class="qa">
+          <span class="qa-q">What kind of team are you looking for?</span>
+          <span class="qa-a placeholder-text" data-placeholder="qa-team">[ Replace with what you're actually looking for in your next role. ]</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ EXPERIENCE LOG ============ -->
+<section class="experience" id="experience">
+  <div class="section-head">
+    <span class="eyebrow">// experience_log</span>
+    <h2>Experience</h2>
+  </div>
+
+  <div class="log">
+
+    <div class="log-entry">
+      <div class="log-time">
+        <span class="log-range">2023 — 2025</span>
+        <span class="log-tag tag-current">2025 — present</span>
+      </div>
+      <div class="log-body">
+        <h3>Cybersecurity Engineer</h3>
+        <p class="log-org">Rapid Response Monitoring Services (RRMS) <span class="sep">·</span> Oct 2023 – Jul 2025</p>
+        <ul>
+          <li>Led enterprise-wide CIS hardening across Windows and Linux systems, reducing exploitable vulnerabilities by <strong>82%</strong></li>
+          <li>Built and implemented SIEM-integrated detection pipelines across Splunk, ELK, and Graylog</li>
+          <li>Integrated Cortex XDR, CrowdStrike, SentinelOne, and ESET into a centralized detection and response architecture</li>
+          <li>Automated vulnerability remediation validation using PowerShell and Qualys APIs across <strong>5,000+</strong> systems</li>
+          <li>Built and deployed phishing simulation, email security, and DLP programs aligned to enterprise compliance requirements</li>
+        </ul>
+        <div class="log-stack">
+          <span>Splunk</span><span>ELK</span><span>Graylog</span><span>CrowdStrike</span><span>SentinelOne</span><span>Cortex XDR</span><span>PowerShell</span><span>Qualys</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="log-entry">
+      <div class="log-time">
+        <span class="log-range">Aug 2025 — present</span>
+      </div>
+      <div class="log-body">
+        <h3>IT Infrastructure Consultant &amp; Independent Practice</h3>
+        <p class="log-org">Self-Employed</p>
+        <ul>
+          <li>Maintain an active security lab running detection engineering pipelines, Intune MDM, and SIEM integrations for continuous skills development</li>
+          <li>Provide freelance cybersecurity and IT advisory to small business clients, applying enterprise-grade process at smaller scale</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="log-entry">
+      <div class="log-time">
+        <span class="log-range">Feb 2023 — Sep 2023</span>
+      </div>
+      <div class="log-body">
+        <h3>System Administrator <span class="dim">(Security-Focused)</span></h3>
+        <p class="log-org">The Smart Circle</p>
+        <ul>
+          <li>Designed and implemented enterprise vulnerability management program using Tenable and KACE</li>
+          <li>Achieved <strong>90%</strong> patch compliance across Windows and Linux systems</li>
+          <li>Led migration of <strong>1,500+</strong> endpoints to CrowdStrike Falcon, improving endpoint detection capabilities</li>
+          <li>Implemented IAM and credential management solutions including Okta, Atlassian, and 1Password</li>
+          <li>Designed disaster recovery and business continuity strategies for critical systems</li>
+        </ul>
+        <div class="log-stack">
+          <span>Tenable</span><span>KACE</span><span>CrowdStrike Falcon</span><span>Okta</span><span>1Password</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="log-entry">
+      <div class="log-time">
+        <span class="log-range">Jun 2022 — Jan 2023</span>
+      </div>
+      <div class="log-body">
+        <h3>Network Engineer <span class="dim">(MSP)</span></h3>
+        <p class="log-org">InSync Computer Solutions</p>
+        <ul>
+          <li>Secured <strong>10,000+</strong> endpoints across multiple client environments through layered security controls</li>
+          <li>Delivered vulnerability remediation and infrastructure hardening across diverse network environments</li>
+          <li>Maintained service reliability and resolved infrastructure and security incidents at scale</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="log-entry">
+      <div class="log-time">
+        <span class="log-range">2020 — 2022</span>
+      </div>
+      <div class="log-body">
+        <h3>IT &amp; Security Support</h3>
+        <p class="log-org">Apple <span class="sep">·</span> Keeco <span class="sep">·</span> SilverVentures <span class="sep">·</span> Apogee</p>
+        <ul>
+          <li>Supported <strong>1,000+</strong> users across enterprise environments with strong first-call resolution</li>
+          <li>Managed identity lifecycle for <strong>700+</strong> users and enforced endpoint security controls across Active Directory</li>
+          <li>Improved technical support efficiency by <strong>500%</strong> through root cause analysis and documentation</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ LAB & PROJECTS (GitHub / Portfolio placeholders) ============ -->
+<section class="lab" id="lab">
+  <div class="section-head">
+    <span class="eyebrow">// lab_&amp;_projects</span>
+    <h2>Lab &amp; Projects</h2>
+    <p class="section-sub">Live writeups, detection rules, and lab builds — linked out to GitHub and project case studies as they go live.</p>
+  </div>
+
+  <div class="lab-grid">
+    <a href="#" class="lab-card placeholder-block" data-placeholder="github-card">
+      <div class="lab-card-head">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span class="soon">connect github</span>
+      </div>
+      <h3>GitHub — Detection rules &amp; automation scripts</h3>
+      <p>Link your repos here: PowerShell remediation scripts, Splunk/Sigma detection rules, lab IaC.</p>
+    </a>
+
+    <a href="#" class="lab-card placeholder-block" data-placeholder="project-1">
+      <div class="lab-card-head">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        <span class="soon">add project</span>
+      </div>
+      <h3>Home SOC Lab — Detection Pipeline</h3>
+      <p>Case study placeholder: Intune MDM + SIEM integration lab. Add architecture diagram, write-up, and screenshots.</p>
+    </a>
+
+    <a href="#" class="lab-card placeholder-block" data-placeholder="project-2">
+      <div class="lab-card-head">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        <span class="soon">add project</span>
+      </div>
+      <h3>CCDC / Hivestorm — Competition Writeup</h3>
+      <p>Case study placeholder: live-attack network defense competition. Add scoring breakdown and key decisions made under pressure.</p>
+    </a>
+
+    <a href="#" class="lab-card placeholder-block" data-placeholder="project-3">
+      <div class="lab-card-head">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+        <span class="soon">add project</span>
+      </div>
+      <h3>Vulnerability Remediation Automation</h3>
+      <p>Case study placeholder: PowerShell + Qualys API automation across 5,000+ systems. Add before/after metrics and code samples.</p>
+    </a>
+  </div>
+</section>
+
+<!-- ============ CREDENTIALS ============ -->
+<section class="credentials" id="certs">
+  <div class="section-head">
+    <span class="eyebrow">// credentials</span>
+    <h2>Certifications &amp; Education</h2>
+  </div>
+
+  <div class="cred-grid">
+    <div class="cred-card cred-card-featured">
+      <span class="cred-status">ACTIVE</span>
+      <h3>CISSP</h3>
+      <p>Certified Information Systems Security Professional</p>
+    </div>
+    <div class="cred-card">
+      <span class="cred-status cred-status-pending">RENEWAL IN PROGRESS</span>
+      <h3>CompTIA Network+</h3>
+      <p>Network infrastructure &amp; troubleshooting</p>
+    </div>
+    <div class="cred-card">
+      <span class="cred-status">2024</span>
+      <h3>M.S. Cybersecurity Management</h3>
+      <p>Infrastructure &amp; Systems Security Concentration — Purdue University — GPA 3.92/4.0</p>
+    </div>
+    <div class="cred-card">
+      <span class="cred-status">Magna Cum Laude</span>
+      <h3>B.S. Cybersecurity</h3>
+      <p>Purdue University</p>
+    </div>
+    <div class="cred-card">
+      <span class="cred-status">TOP RANK</span>
+      <h3>Hivestorm &amp; CCDC</h3>
+      <p>Cyber Defense Competitions — network defense under live attack scenarios</p>
+    </div>
+    <div class="cred-card">
+      <span class="cred-status">NCL · HTB</span>
+      <h3>Capture the Flag</h3>
+      <p>Network traffic analysis, intrusion detection &amp; incident response via Wireshark and CLI tooling</p>
+    </div>
+  </div>
+
+  <div class="skills-band">
+    <div class="skills-row">
+      <span class="skills-label">core stack</span>
+      <div class="skills-pills">
+        <span>Splunk</span><span>ELK</span><span>Graylog</span><span>Cortex XDR</span><span>CrowdStrike</span><span>SentinelOne</span>
+        <span>Qualys</span><span>Tenable</span><span>PowerShell</span><span>Python</span><span>Terraform</span><span>Azure</span><span>Okta</span>
+      </div>
+    </div>
+    <div class="skills-row">
+      <span class="skills-label">frameworks</span>
+      <div class="skills-pills">
+        <span>CIS v8</span><span>NIST CSF</span><span>PCI-DSS</span><span>SOC 2</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTACT ============ -->
+<footer class="contact" id="contact">
+  <div class="contact-inner">
+    <span class="eyebrow">// open_connection</span>
+    <h2>Let's talk.</h2>
+    <p>Open to network engineering, security engineering, and IT infrastructure roles.</p>
+    <div class="contact-links">
+      <a href="mailto:jcalleon@outlook.com" class="contact-link">jcalleon@outlook.com</a>
+      <a href="tel:+17078008135" class="contact-link">(707) 800-8135</a>
+      <a href="https://linkedin.com/in/reycubcalleon" target="_blank" rel="noopener" class="contact-link">linkedin.com/in/reycubcalleon</a>
+      <a href="#" class="contact-link placeholder-link" data-placeholder="github-footer">github.com/[your-username] <span class="soon">soon</span></a>
+    </div>
+    <p class="location">Inland Empire, CA</p>
+  </div>
+</footer>
+
+<script>
+// Placeholder click feedback — flash the element so it's obvious what's a stand-in
+document.querySelectorAll('[data-placeholder]').forEach(el => {
+  el.addEventListener('click', (e) => {
+    e.preventDefault();
+    el.classList.add('placeholder-flash');
+    setTimeout(() => el.classList.remove('placeholder-flash'), 900);
+  });
+});
+
+</script>
+</body>
+</html>
