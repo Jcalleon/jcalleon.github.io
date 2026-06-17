@@ -226,6 +226,7 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
 // ===========================================================================
 (function () {
   const canvas = document.getElementById('exposure-canvas');
+  const labelsContainer = document.getElementById('exposure-labels');
   if (!canvas) return;
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -283,24 +284,27 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
           blinkSpeed: 0.015 + Math.random() * 0.02
         });
       }
-      // thin out labels that would collide
+      // thin out labels that would collide, and clip-suppress near right edge
       const labeled = [];
       devices.forEach(d => {
         if (!d.showLabel) return;
+        if (d.x > width - 90) { d.showLabel = false; return; }
         const tooClose = labeled.some(o => Math.abs(o.x - d.x) < 100 && Math.abs(o.y - d.y) < 16);
         if (tooClose) d.showLabel = false; else labeled.push(d);
       });
+      createLabelElements();
       return;
     }
 
     const count = 30;
     const topBand = 170; // hard cap, well above where cred cards begin
-    const headingZone = { top: 50, bottom: 145, left: 0, right: Math.min(width, 650) };
+    const minY = 15; // keep clear of the very top edge / sticky nav seam
+    const headingZone = { top: 45, bottom: 155, left: 0, right: Math.min(width, 680) };
     let attempts = 0;
     while (devices.length < count && attempts < count * 6) {
       attempts++;
       const x = Math.random() * width;
-      const y = Math.random() * topBand;
+      const y = minY + Math.random() * (topBand - minY);
       const inHeadingZone = y > headingZone.top && y < headingZone.bottom && x > headingZone.left && x < headingZone.right;
       if (inHeadingZone) continue;
       const flagged = Math.random() < 0.22;
@@ -316,16 +320,39 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
     }
 
     // suppress labels that would visually collide with an already-labeled
-    // device (labels render to the right of the icon, ~90px wide)
+    // device (labels render to the right of the icon, ~90px wide), and
+    // suppress labels that would clip past the right edge of the canvas
     const labeled = [];
     devices.forEach(d => {
       if (!d.showLabel) return;
-      const tooClose = labeled.some(o => Math.abs(o.x - d.x) < 110 && Math.abs(o.y - d.y) < 16);
+      if (d.x > width - 100) {
+        d.showLabel = false;
+        return;
+      }
+      const tooClose = labeled.some(o => Math.abs(o.x - d.x) < 130 && Math.abs(o.y - d.y) < 18);
       if (tooClose) {
         d.showLabel = false;
       } else {
         labeled.push(d);
       }
+    });
+    createLabelElements();
+  }
+
+  function createLabelElements() {
+    if (!labelsContainer) return;
+    labelsContainer.innerHTML = '';
+    devices.forEach(d => {
+      if (!d.showLabel) {
+        d.labelEl = null;
+        return;
+      }
+      const el = document.createElement('span');
+      el.className = 'exposure-label' + (d.flagged ? ' flagged' : '');
+      el.textContent = d.ip;
+      el.style.display = 'none';
+      labelsContainer.appendChild(el);
+      d.labelEl = el;
     });
   }
 
@@ -422,10 +449,12 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
       else if (d.type === 'lock') drawLock(d.x, d.y, size, color);
       else drawNode(d.x, d.y, size, color);
 
-      if (d.showLabel && (justSwept || d.flagged)) {
-        ctx.font = '9px "JetBrains Mono", monospace';
-        ctx.fillStyle = d.flagged ? FLAG : ICE_DIM;
-        ctx.fillText(d.ip, d.x + 12, d.y + 3);
+      if (d.showLabel && (justSwept || d.flagged) && d.labelEl) {
+        d.labelEl.style.display = 'block';
+        d.labelEl.style.left = (d.x + 12) + 'px';
+        d.labelEl.style.top = d.y + 'px';
+      } else if (d.labelEl) {
+        d.labelEl.style.display = 'none';
       }
     });
 
