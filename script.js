@@ -860,159 +860,70 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
 })();
 
 // ===========================================================================
-// LOG TICKER ANIMATION — faint scrolling log lines in the gap between the
-// "Experience" heading and the first timeline entry. Quiet by design since
-// the log timeline below is already text-dense; this is a thin accent
-// strip, not a full-section overlay. Text via HTML, not canvas fillText.
+// EXPERIENCE STICKY SCROLL — pinned SVG scene panel that swaps "scenes"
+// (SOC wall, hooded solo operator, lock, network hub, headset) as the
+// matching case-file scrolls through the active zone. Driven by
+// IntersectionObserver, not scroll-jacking: native scroll, just watched.
 // ===========================================================================
 (function () {
-  const canvas = document.getElementById('ticker-canvas');
-  const labelsContainer = document.getElementById('ticker-labels');
-  if (!canvas) return;
+  const scroller = document.getElementById('exp-scroller');
+  if (!scroller) return;
+
+  const cases = Array.from(scroller.querySelectorAll('.exp-case'));
+  const sceneGroups = Array.from(scroller.querySelectorAll('.exp-scene-group'));
+  const orgEl = document.getElementById('exp-stage-org');
+  const rangeEl = document.getElementById('exp-stage-range');
+  if (!cases.length || !sceneGroups.length) return;
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const ctx = canvas.getContext('2d');
+  let activeCase = cases[0];
 
-  let width, height, dpr;
-  let lines = [];
-  let rafId = null;
-  let bandTop = 0, bandHeight = 60;
+  function setActive(caseEl) {
+    if (caseEl === activeCase) return;
+    activeCase = caseEl;
 
-  const LINE_TICK = 'rgba(91, 143, 176, 0.5)';
+    cases.forEach(c => c.classList.toggle('is-active', c === caseEl));
 
-  const SAMPLE_LINES = [
-    { text: 'svc.heartbeat 200 OK', tone: 'ok' },
-    { text: 'auth.session renewed', tone: 'ok' },
-    { text: 'scan.vuln queue=0', tone: 'ok' },
-    { text: 'patch.window closed', tone: 'ok' },
-    { text: 'detect.rule matched', tone: 'warn' },
-    { text: 'siem.ingest 1248 ev/s', tone: 'ok' },
-    { text: 'edr.agent check-in', tone: 'ok' },
-    { text: 'backup.job completed', tone: 'ok' },
-    { text: 'fw.rule sync done', tone: 'ok' },
-    { text: 'iam.token rotated', tone: 'ok' }
-  ];
+    const scene = caseEl.dataset.scene;
+    sceneGroups.forEach(g => g.classList.toggle('is-live', g.dataset.scene === scene));
 
-  function resize() {
-    const rect = canvas.parentElement.getBoundingClientRect();
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
-    width = rect.width;
-    height = rect.height;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    canvas.style.width = width + 'px';
-    canvas.style.height = height + 'px';
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (orgEl)   orgEl.textContent = caseEl.dataset.org || '';
+    if (rangeEl) rangeEl.textContent = caseEl.dataset.range || '';
   }
 
-  function measureBand() {
-    const sectionEl = canvas.parentElement;
-    const headEl = sectionEl.querySelector('.section-head');
-    const logEl = sectionEl.querySelector('.log');
-    const sectionTop = sectionEl.getBoundingClientRect().top;
-    const headBottom = headEl ? headEl.getBoundingClientRect().bottom - sectionTop : 80;
-    const logTop = logEl ? logEl.getBoundingClientRect().top - sectionTop : 140;
-    const margin = 8;
-    bandTop = headBottom + margin;
-    bandHeight = Math.max(20, logTop - bandTop - margin);
+  // Initialize first scene as live immediately (no fade-in wait on load)
+  sceneGroups.forEach(g => g.classList.toggle('is-live', g.dataset.scene === cases[0].dataset.scene));
+  if (orgEl)   orgEl.textContent = cases[0].dataset.org || '';
+  if (rangeEl) rangeEl.textContent = cases[0].dataset.range || '';
+
+  if (reduceMotion) {
+    // Without smooth animation preference, just snap straight through —
+    // still functionally correct, no IntersectionObserver needed for tiny win.
   }
 
-  function buildLines() {
-    measureBand();
-    const isMobile = width < 640;
-    const count = isMobile ? 2 : 3;
-    lines = [];
-    for (let i = 0; i < count; i++) {
-      const sample = SAMPLE_LINES[Math.floor(Math.random() * SAMPLE_LINES.length)];
-      lines.push({
-        x: Math.random() * width,
-        y: bandTop + (bandHeight / (count + 1)) * (i + 1),
-        text: sample.text,
-        tone: sample.tone,
-        speed: 0.15 + Math.random() * 0.1
-      });
-    }
-    createLineLabels();
-  }
-
-  let lineEls = [];
-  function createLineLabels() {
-    if (!labelsContainer) return;
-    labelsContainer.innerHTML = '';
-    lineEls = lines.map(line => {
-      const el = document.createElement('span');
-      el.className = 'ticker-label';
-      const dot = `<span class="${line.tone === 'ok' ? 'ok' : 'warn'}">&bull;</span> `;
-      el.innerHTML = dot + line.text;
-      labelsContainer.appendChild(el);
-      return el;
-    });
-  }
-
-  function step() {
-    ctx.clearRect(0, 0, width, height);
-
-    // faint baseline rule across the band
-    ctx.beginPath();
-    ctx.moveTo(0, bandTop + bandHeight - 2);
-    ctx.lineTo(width, bandTop + bandHeight - 2);
-    ctx.strokeStyle = 'rgba(91, 143, 176, 0.12)';
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
-
-    lines.forEach((line, i) => {
-      if (!reduceMotion) line.x -= line.speed;
-      if (line.x < -260) {
-        line.x = width + 40;
-        const sample = SAMPLE_LINES[Math.floor(Math.random() * SAMPLE_LINES.length)];
-        line.text = sample.text;
-        line.tone = sample.tone;
-        const el = lineEls[i];
-        if (el) {
-          const dot = `<span class="${line.tone === 'ok' ? 'ok' : 'warn'}">&bull;</span> `;
-          el.innerHTML = dot + line.text;
-        }
+  const observer = new IntersectionObserver((entries) => {
+    // Pick whichever intersecting entry is closest to vertical center of viewport
+    let best = null;
+    let bestDist = Infinity;
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const rect = entry.target.getBoundingClientRect();
+      const center = rect.top + rect.height / 2;
+      const viewportCenter = window.innerHeight / 2;
+      const dist = Math.abs(center - viewportCenter);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = entry.target;
       }
-      const el = lineEls[i];
-      if (el) {
-        el.style.left = line.x + 'px';
-        el.style.top = line.y + 'px';
-        el.style.opacity = (line.x < 20 || line.x > width - 80) ? '0.3' : '0.7';
-      }
-      ctx.beginPath();
-      ctx.arc(line.x - 10, line.y, 1.4, 0, Math.PI * 2);
-      ctx.fillStyle = LINE_TICK;
-      ctx.fill();
     });
-
-    rafId = requestAnimationFrame(step);
-  }
-
-  function init() {
-    resize();
-    buildLines();
-    if (rafId) cancelAnimationFrame(rafId);
-    if (!reduceMotion) {
-      step();
-    } else {
-      ctx.clearRect(0, 0, width, height);
-      lines.forEach((line, i) => {
-        const el = lineEls[i];
-        if (el) {
-          el.style.left = line.x + 'px';
-          el.style.top = line.y + 'px';
-        }
-      });
-    }
-  }
-
-  let tickerResizeTimeout;
-  window.addEventListener('resize', () => {
-    clearTimeout(tickerResizeTimeout);
-    tickerResizeTimeout = setTimeout(init, 200);
+    if (best) setActive(best);
+  }, {
+    root: null,
+    rootMargin: '-20% 0px -20% 0px',
+    threshold: [0, 0.1, 0.25, 0.5, 0.75, 1]
   });
 
-  init();
+  cases.forEach(c => observer.observe(c));
 })();
 
 // ===========================================================================
