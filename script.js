@@ -860,70 +860,449 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
 })();
 
 // ===========================================================================
-// EXPERIENCE STICKY SCROLL — pinned SVG scene panel that swaps "scenes"
-// (SOC wall, hooded solo operator, lock, network hub, headset) as the
-// matching case-file scrolls through the active zone. Driven by
-// IntersectionObserver, not scroll-jacking: native scroll, just watched.
+// EXPERIENCE STICKY SCROLL — two glowing security "nodes" rendered on canvas.
+// They drift gently with the cursor (parallax, like Helion's plasma orbs),
+// and pull together into a single merged node as the visitor scrolls through
+// the case-file list. Each node displays an icon — terminal, hooded operator,
+// lock, IP/network, shield — that swaps to match whichever job is centered
+// in the viewport, with a faint matrix-style falling character rain inside
+// the terminal-type icons. No scroll-jacking: native scroll, just observed.
 // ===========================================================================
 (function () {
-  const scroller = document.getElementById('exp-scroller');
-  if (!scroller) return;
+  const scroller   = document.getElementById('exp-scroller');
+  const stageInner = document.getElementById('exp-stage-inner');
+  const canvas     = document.getElementById('exp-canvas');
+  if (!scroller || !stageInner || !canvas) return;
 
-  const cases = Array.from(scroller.querySelectorAll('.exp-case'));
-  const sceneGroups = Array.from(scroller.querySelectorAll('.exp-scene-group'));
-  const orgEl = document.getElementById('exp-stage-org');
-  const rangeEl = document.getElementById('exp-stage-range');
-  if (!cases.length || !sceneGroups.length) return;
+  const cases  = Array.from(scroller.querySelectorAll('.exp-case'));
+  const orgEl  = document.getElementById('exp-stage-org');
+  const rangeEl= document.getElementById('exp-stage-range');
+  if (!cases.length) return;
 
+  const ctx = canvas.getContext('2d');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let activeCase = cases[0];
 
+  const COLOR_STEEL  = '91, 143, 176';
+  const COLOR_GREEN  = '63, 182, 140';
+  const COLOR_AMBER  = '240, 169, 60';
+  const COLOR_TEXT   = '230, 232, 235';
+
+  let width = 0, height = 0, dpr = 1;
+  let cx = 0, cy = 0;            // stage center
+  let mouseX = 0, mouseY = 0;    // pointer position relative to stage, -1..1
+  let targetMouseX = 0, targetMouseY = 0;
+  let mergeProgress = 0;         // 0 = apart, 1 = fully merged
+  let targetMerge = 0;
+  let activeCase = cases[0];
+  let rafId = null;
+  let matrixCols = [];
+  let t = 0; // animation clock
+
+  const ICONS = ['terminal', 'hacker', 'lock', 'ip', 'shield'];
+
+  function resize() {
+    const rect = stageInner.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = rect.width;
+    height = rect.height;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cx = width / 2;
+    cy = height / 2;
+    buildMatrixCols();
+  }
+
+  function buildMatrixCols() {
+    const colWidth = 11;
+    const count = Math.max(4, Math.floor((width * 0.42) / colWidth));
+    matrixCols = [];
+    for (let i = 0; i < count; i++) {
+      matrixCols.push({
+        x: i * colWidth,
+        y: Math.random() * -200,
+        speed: 0.6 + Math.random() * 1.2,
+        len: 4 + Math.floor(Math.random() * 6)
+      });
+    }
+  }
+
+  const MATRIX_CHARS = '01アイウエオカキクケコサシスセソ$#@&%';
+  function randChar() {
+    return MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)];
+  }
+
+  // -------------------------------------------------------------------
+  // Pointer tracking — relative position within the stage, normalized
+  // -------------------------------------------------------------------
+  function onPointerMove(e) {
+    const rect = stageInner.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    targetMouseX = Math.max(-1, Math.min(1, (x - cx) / cx));
+    targetMouseY = Math.max(-1, Math.min(1, (y - cy) / cy));
+  }
+  function onPointerLeave() {
+    targetMouseX = 0;
+    targetMouseY = 0;
+  }
+  stageInner.addEventListener('mousemove', onPointerMove);
+  stageInner.addEventListener('mouseleave', onPointerLeave);
+
+  // -------------------------------------------------------------------
+  // Scroll tracking — merge progress derives from how far the visitor
+  // has scrolled through the .exp-scroller relative to viewport
+  // -------------------------------------------------------------------
+  function updateMergeFromScroll() {
+    const rect = scroller.getBoundingClientRect();
+    const total = rect.height - window.innerHeight;
+    if (total <= 0) { targetMerge = 0; return; }
+    const scrolled = Math.min(Math.max(-rect.top, 0), total);
+    targetMerge = Math.min(1, scrolled / total);
+  }
+
+  // -------------------------------------------------------------------
+  // Active case tracking (drives which icon pair shows + readout text)
+  // -------------------------------------------------------------------
   function setActive(caseEl) {
     if (caseEl === activeCase) return;
     activeCase = caseEl;
-
     cases.forEach(c => c.classList.toggle('is-active', c === caseEl));
-
-    const scene = caseEl.dataset.scene;
-    sceneGroups.forEach(g => g.classList.toggle('is-live', g.dataset.scene === scene));
-
     if (orgEl)   orgEl.textContent = caseEl.dataset.org || '';
     if (rangeEl) rangeEl.textContent = caseEl.dataset.range || '';
   }
 
-  // Initialize first scene as live immediately (no fade-in wait on load)
-  sceneGroups.forEach(g => g.classList.toggle('is-live', g.dataset.scene === cases[0].dataset.scene));
   if (orgEl)   orgEl.textContent = cases[0].dataset.org || '';
   if (rangeEl) rangeEl.textContent = cases[0].dataset.range || '';
 
-  if (reduceMotion) {
-    // Without smooth animation preference, just snap straight through —
-    // still functionally correct, no IntersectionObserver needed for tiny win.
-  }
-
   const observer = new IntersectionObserver((entries) => {
-    // Pick whichever intersecting entry is closest to vertical center of viewport
-    let best = null;
-    let bestDist = Infinity;
+    let best = null, bestDist = Infinity;
     entries.forEach(entry => {
       if (!entry.isIntersecting) return;
       const rect = entry.target.getBoundingClientRect();
       const center = rect.top + rect.height / 2;
-      const viewportCenter = window.innerHeight / 2;
-      const dist = Math.abs(center - viewportCenter);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = entry.target;
-      }
+      const dist = Math.abs(center - window.innerHeight / 2);
+      if (dist < bestDist) { bestDist = dist; best = entry.target; }
     });
     if (best) setActive(best);
-  }, {
-    root: null,
-    rootMargin: '-20% 0px -20% 0px',
-    threshold: [0, 0.1, 0.25, 0.5, 0.75, 1]
-  });
-
+  }, { root: null, rootMargin: '-20% 0px -20% 0px', threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] });
   cases.forEach(c => observer.observe(c));
+
+  // -------------------------------------------------------------------
+  // Icon renderers — drawn in local space centered on (0,0), caller translates
+  // -------------------------------------------------------------------
+  function drawTerminal(r) {
+    const w = r * 1.5, h = r * 1.1;
+    ctx.save();
+    ctx.fillStyle = '#0D1117';
+    ctx.strokeStyle = `rgba(${COLOR_GREEN}, 0.55)`;
+    ctx.lineWidth = 1.5;
+    roundRect(-w / 2, -h / 2, w, h, 5);
+    ctx.fill(); ctx.stroke();
+
+    // matrix rain clipped to screen
+    ctx.save();
+    roundRectPath(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, 3);
+    ctx.clip();
+    ctx.font = '8px "JetBrains Mono", monospace';
+    ctx.textBaseline = 'top';
+    for (const col of matrixCols) {
+      const localX = -w / 2 + 3 + (col.x % (w - 6));
+      for (let i = 0; i < col.len; i++) {
+        const yy = -h / 2 + ((col.y + i * 9) % (h + 20)) - 10;
+        const fade = i === 0 ? 1 : 0.45 - i * 0.07;
+        if (fade <= 0) continue;
+        ctx.fillStyle = `rgba(${COLOR_GREEN}, ${Math.max(0, fade)})`;
+        ctx.fillText(randChar(), localX, yy);
+      }
+    }
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function drawHacker(r) {
+    ctx.save();
+    // hood
+    ctx.fillStyle = '#161B22';
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.55);
+    ctx.quadraticCurveTo(-r * 0.5, -r * 0.5, -r * 0.42, r * 0.05);
+    ctx.quadraticCurveTo(-r * 0.55, r * 0.35, -r * 0.62, r * 0.62);
+    ctx.lineTo(r * 0.62, r * 0.62);
+    ctx.quadraticCurveTo(r * 0.55, r * 0.35, r * 0.42, r * 0.05);
+    ctx.quadraticCurveTo(r * 0.5, -r * 0.5, 0, -r * 0.55);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // face void
+    ctx.fillStyle = '#05070a';
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.05, r * 0.26, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // terminal glow reflecting on face
+    const glowPulse = 0.35 + Math.sin(t * 0.0022) * 0.18;
+    ctx.fillStyle = `rgba(${COLOR_GREEN}, ${glowPulse})`;
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.05, r * 0.16, r * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawLock(r) {
+    ctx.save();
+    const shackleLift = Math.max(0, Math.sin(t * 0.0014)) * 2;
+    ctx.strokeStyle = `rgba(${COLOR_STEEL}, 0.85)`;
+    ctx.lineWidth = r * 0.16;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.18 - shackleLift, r * 0.34, Math.PI, 0);
+    ctx.stroke();
+
+    ctx.fillStyle = '#161B22';
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    roundRect(-r * 0.46, -r * 0.1, r * 0.92, r * 0.62, r * 0.1);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = `rgba(${COLOR_GREEN}, 0.9)`;
+    ctx.beginPath();
+    ctx.arc(0, r * 0.16, r * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-r * 0.03, r * 0.16, r * 0.06, r * 0.16);
+    ctx.restore();
+  }
+
+  function drawIP(r) {
+    ctx.save();
+    ctx.font = `${r * 0.24}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // hub node
+    ctx.fillStyle = '#161B22';
+    ctx.strokeStyle = `rgba(${COLOR_STEEL}, 0.8)`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.16, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+
+    // spokes
+    const spokes = 4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < spokes; i++) {
+      const ang = (Math.PI * 2 * i) / spokes + Math.PI / 4;
+      const ex = Math.cos(ang) * r * 0.55;
+      const ey = Math.sin(ang) * r * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      ctx.fillStyle = '#161B22';
+      ctx.beginPath();
+      ctx.arc(ex, ey, r * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    }
+
+    // blocked IP tag
+    ctx.fillStyle = `rgba(${COLOR_TEXT}, 0.55)`;
+    ctx.fillText('10.0.4.18', 0, r * 0.82);
+    ctx.restore();
+  }
+
+  function drawShield(r) {
+    ctx.save();
+    ctx.fillStyle = '#161B22';
+    ctx.strokeStyle = `rgba(${COLOR_STEEL}, 0.8)`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.6);
+    ctx.quadraticCurveTo(r * 0.5, -r * 0.42, r * 0.5, -r * 0.05);
+    ctx.quadraticCurveTo(r * 0.5, r * 0.42, 0, r * 0.62);
+    ctx.quadraticCurveTo(-r * 0.5, r * 0.42, -r * 0.5, -r * 0.05);
+    ctx.quadraticCurveTo(-r * 0.5, -r * 0.42, 0, -r * 0.6);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    const pulse = 0.7 + Math.sin(t * 0.003) * 0.3;
+    ctx.strokeStyle = `rgba(${COLOR_GREEN}, ${pulse})`;
+    ctx.lineWidth = r * 0.1;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.22, 0);
+    ctx.lineTo(-r * 0.05, r * 0.18);
+    ctx.lineTo(r * 0.26, -r * 0.18);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const ICON_DRAW = { terminal: drawTerminal, hacker: drawHacker, lock: drawLock, ip: drawIP, shield: drawShield };
+
+  function roundRectPath(x, y, w, h, rad) {
+    ctx.beginPath();
+    ctx.moveTo(x + rad, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rad);
+    ctx.arcTo(x + w, y + h, x, y + h, rad);
+    ctx.arcTo(x, y + h, x, y, rad);
+    ctx.arcTo(x, y, x + w, y, rad);
+    ctx.closePath();
+  }
+  function roundRect(x, y, w, h, rad) { roundRectPath(x, y, w, h, rad); }
+
+  // -------------------------------------------------------------------
+  // Node glow + icon composite
+  // -------------------------------------------------------------------
+  function drawNode(x, y, r, iconType, glowAlpha) {
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r * 1.9);
+    grad.addColorStop(0, `rgba(${COLOR_STEEL}, ${0.55 * glowAlpha})`);
+    grad.addColorStop(0.5, `rgba(${COLOR_STEEL}, ${0.22 * glowAlpha})`);
+    grad.addColorStop(1, `rgba(${COLOR_STEEL}, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // base disc
+    ctx.fillStyle = 'rgba(22, 27, 34, 0.9)';
+    ctx.strokeStyle = `rgba(${COLOR_STEEL}, ${0.5 * glowAlpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+
+    // rotating dashed ring
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((t * 0.00015) % (Math.PI * 2));
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 7]);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.18, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // icon
+    ctx.save();
+    ctx.translate(x, y);
+    const draw = ICON_DRAW[iconType] || drawTerminal;
+    draw(r * 0.78);
+    ctx.restore();
+  }
+
+  // -------------------------------------------------------------------
+  // Merge bridge — cheap metaball approximation between two equal circles:
+  // draw a stretched lens shape that grows as the circles approach,
+  // capped/clipped by the circle radius so it never overshoots.
+  // -------------------------------------------------------------------
+  function drawBridge(x1, y, x2, r, alpha) {
+    if (alpha <= 0) return;
+    const midX = (x1 + x2) / 2;
+    const halfGap = Math.abs(x2 - x1) / 2;
+    const bridgeW = Math.max(0, r - halfGap * 0.55);
+    if (bridgeW <= 0) return;
+    const bridgeH = r * 0.62 * alpha;
+
+    const grad = ctx.createLinearGradient(midX - bridgeW, y, midX + bridgeW, y);
+    grad.addColorStop(0, `rgba(${COLOR_STEEL}, 0)`);
+    grad.addColorStop(0.5, `rgba(${COLOR_STEEL}, ${0.85 * alpha})`);
+    grad.addColorStop(1, `rgba(${COLOR_STEEL}, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(midX, y, bridgeW, bridgeH, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // -------------------------------------------------------------------
+  // Main render loop
+  // -------------------------------------------------------------------
+  function frame(dt) {
+    t += dt;
+
+    // ease pointer + merge toward targets
+    const ease = reduceMotion ? 1 : 0.06;
+    mouseX += (targetMouseX - mouseX) * ease;
+    mouseY += (targetMouseY - mouseY) * ease;
+    mergeProgress += (targetMerge - mergeProgress) * (reduceMotion ? 1 : 0.08);
+
+    // matrix rain advance
+    if (!reduceMotion) {
+      for (const col of matrixCols) {
+        col.y += col.speed;
+        if (col.y > height + 40) col.y = Math.random() * -100;
+      }
+    }
+
+    ctx.clearRect(0, 0, width, height);
+
+    const baseR = Math.min(width, height) * 0.155;
+    const idleFloat = reduceMotion ? 0 : Math.sin(t * 0.0009) * 6;
+    const idleFloat2 = reduceMotion ? 0 : Math.cos(t * 0.0011) * 6;
+
+    // base separated positions (left/right of center, slightly different heights)
+    const sep = (1 - mergeProgress) * (width * 0.22);
+    const parallaxStrength = 18;
+
+    const x1 = cx - sep + mouseX * parallaxStrength + idleFloat * 0.4;
+    const y1 = cy - height * 0.05 + mouseY * parallaxStrength * 0.6 + idleFloat;
+    const x2 = cx + sep + mouseX * parallaxStrength * 0.7 + idleFloat2 * 0.4;
+    const y2 = cy + height * 0.06 + mouseY * parallaxStrength * 0.6 + idleFloat2;
+
+    // icon for node 1 = active case scene; node 2 = next case in list (preview)
+    const activeIdx = cases.indexOf(activeCase);
+    const icon1 = activeCase.dataset.scene || 'terminal';
+    const nextCase = cases[(activeIdx + 1) % cases.length];
+    const icon2 = mergeProgress > 0.9 ? icon1 : (nextCase.dataset.scene || 'shield');
+
+    // bridge first (sits behind nodes)
+    drawBridge(x1, (y1 + y2) / 2, x2, baseR, Math.max(0, (mergeProgress - 0.55) / 0.45));
+
+    const fadeOutSecond = Math.max(0, 1 - Math.max(0, (mergeProgress - 0.75) / 0.25));
+    drawNode(x1, y1, baseR, icon1, 1);
+    if (fadeOutSecond > 0.02) drawNode(x2, y2, baseR * (0.85 + 0.15 * fadeOutSecond), icon2, fadeOutSecond);
+
+    if (!reduceMotion) {
+      rafId = requestAnimationFrame(step);
+    }
+  }
+
+  let lastTime = performance.now();
+  function step(now) {
+    const dt = Math.min(48, now - lastTime);
+    lastTime = now;
+    updateMergeFromScroll();
+    frame(dt);
+  }
+
+  function init() {
+    resize();
+    lastTime = performance.now();
+    updateMergeFromScroll();
+    if (reduceMotion) {
+      frame(16);
+    } else {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(step);
+    }
+  }
+
+  let expResizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(expResizeTimeout);
+    expResizeTimeout = setTimeout(init, 200);
+  });
+  window.addEventListener('scroll', () => {
+    if (reduceMotion) { updateMergeFromScroll(); frame(16); }
+  }, { passive: true });
+
+  init();
 })();
 
 // ===========================================================================

@@ -260,140 +260,11 @@
 
   <div class="exp-scroller" id="exp-scroller">
 
-    <!-- PINNED VISUAL — stays fixed in viewport while case files scroll past -->
+    <!-- PINNED VISUAL — two glowing security nodes drift with the cursor and
+         merge together as the case files scroll past -->
     <div class="exp-stage">
-      <div class="exp-stage-inner">
-        <svg id="exp-scene" class="exp-scene" viewBox="0 0 360 360" aria-hidden="true">
-
-          <!-- shared dim grid -->
-          <defs>
-            <radialGradient id="exp-glow" cx="50%" cy="42%" r="60%">
-              <stop offset="0%" stop-color="#5B8FB0" stop-opacity="0.16"/>
-              <stop offset="100%" stop-color="#5B8FB0" stop-opacity="0"/>
-            </radialGradient>
-            <filter id="exp-blur"><feGaussianBlur stdDeviation="0.6"/></filter>
-          </defs>
-          <circle cx="180" cy="150" r="170" fill="url(#exp-glow)"/>
-
-          <!-- orbiting telemetry ring, always present -->
-          <g class="exp-ring" stroke="#2A3140" fill="none">
-            <circle cx="180" cy="180" r="138" stroke-dasharray="2 6"/>
-          </g>
-          <g class="exp-ring-dot" fill="#3FB68C">
-            <circle r="3"/>
-          </g>
-
-          <!-- SCENE: SOC / DETECTION (current role) -->
-          <g class="exp-scene-group" data-scene="soc">
-            <g class="scene-glyph">
-              <!-- multi-monitor SOC wall -->
-              <rect x="78" y="100" width="80" height="56" rx="3" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <rect x="166" y="92" width="96" height="68" rx="3" fill="#161B22" stroke="#5B8FB0" stroke-width="1.5"/>
-              <rect x="92" y="166" width="58" height="42" rx="3" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <!-- waveform on main screen -->
-              <polyline points="178,120 192,120 198,108 206,140 214,116 222,132 230,124 250,124" fill="none" stroke="#3FB68C" stroke-width="2" class="scene-pulse"/>
-              <!-- alert blip -->
-              <circle cx="244" cy="106" r="4" fill="#F0A93C" class="scene-blip"/>
-              <!-- small screens text rows -->
-              <g stroke="#5C6573" stroke-width="1.5">
-                <line x1="86" y1="114" x2="130" y2="114"/>
-                <line x1="86" y1="124" x2="120" y2="124"/>
-                <line x1="86" y1="134" x2="134" y2="134"/>
-                <line x1="100" y1="178" x2="138" y2="178"/>
-                <line x1="100" y1="188" x2="128" y2="188"/>
-              </g>
-              <!-- console base -->
-              <rect x="70" y="232" width="220" height="10" rx="2" fill="#1C2330" stroke="#2A3140"/>
-              <!-- floating IP / log tags -->
-              <text x="64" y="270" class="scene-tag">10.0.4.182 → BLOCKED</text>
-              <text x="64" y="288" class="scene-tag scene-tag-ok">edr.agent · 1,247 hosts ✓</text>
-            </g>
-          </g>
-
-          <!-- SCENE: CONSULTING / SOLO OPERATOR -->
-          <g class="exp-scene-group" data-scene="solo">
-            <g class="scene-glyph">
-              <!-- single hooded silhouette at terminal -->
-              <path d="M180 96c-15 0-26 12-26 27 0 9 4 17 10 22-18 8-30 26-30 48v10h92v-10c0-22-12-40-30-48 6-5 10-13 10-22 0-15-11-27-26-27z" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <path d="M154 123c0 18 12 30 26 30s26-12 26-30c0-4-10-10-26-10s-26 6-26 10z" fill="#0D1117"/>
-              <!-- terminal glow on hood -->
-              <rect x="160" y="118" width="40" height="14" rx="2" fill="#3FB68C" opacity="0.18" class="scene-pulse"/>
-              <!-- laptop -->
-              <rect x="140" y="208" width="80" height="6" rx="2" fill="#1C2330" stroke="#2A3140"/>
-              <rect x="148" y="186" width="64" height="22" rx="2" fill="#161B22" stroke="#5B8FB0" stroke-width="1.5"/>
-              <g stroke="#3FB68C" stroke-width="1.3" class="scene-pulse">
-                <line x1="154" y1="192" x2="178" y2="192"/>
-                <line x1="154" y1="198" x2="186" y2="198"/>
-              </g>
-              <!-- orbiting client nodes -->
-              <g class="scene-orbit-node" fill="#5B8FB0"><circle r="3.5"/></g>
-              <g class="scene-orbit-node-2" fill="#F0A93C"><circle r="3"/></g>
-              <text x="64" y="288" class="scene-tag">freelance · self-employed</text>
-            </g>
-          </g>
-
-          <!-- SCENE: VULN MGMT / LOCK -->
-          <g class="exp-scene-group" data-scene="lock">
-            <g class="scene-glyph">
-              <!-- big shackle lock -->
-              <path d="M156 150v-22a36 36 0 0 1 72 0v22" fill="none" stroke="#5B8FB0" stroke-width="9" stroke-linecap="round" class="scene-shackle"/>
-              <rect x="140" y="148" width="104" height="78" rx="10" fill="#161B22" stroke="#2A3140" stroke-width="2"/>
-              <circle cx="192" cy="182" r="11" fill="#0D1117" stroke="#3FB68C" stroke-width="2"/>
-              <rect x="188" y="190" width="8" height="16" rx="2" fill="#0D1117" stroke="#3FB68C" stroke-width="2"/>
-              <!-- patch checkmarks orbiting -->
-              <g class="scene-orbit-node" fill="#3FB68C"><path d="M-4,0 L-1,4 L5,-5" stroke="#3FB68C" stroke-width="2" fill="none"/></g>
-              <g class="scene-orbit-node-2" fill="#3FB68C"><path d="M-4,0 L-1,4 L5,-5" stroke="#3FB68C" stroke-width="2" fill="none"/></g>
-              <text x="64" y="270" class="scene-tag scene-tag-ok">patch compliance · 90%</text>
-              <text x="64" y="288" class="scene-tag">1,500+ endpoints migrated</text>
-            </g>
-          </g>
-
-          <!-- SCENE: NETWORK ENGINEER / MSP -->
-          <g class="exp-scene-group" data-scene="network">
-            <g class="scene-glyph">
-              <!-- hub and spoke network -->
-              <circle cx="192" cy="170" r="10" fill="#161B22" stroke="#5B8FB0" stroke-width="2"/>
-              <g stroke="#2A3140" stroke-width="1.5">
-                <line x1="192" y1="170" x2="126" y2="120"/>
-                <line x1="192" y1="170" x2="258" y2="120"/>
-                <line x1="192" y1="170" x2="126" y2="220"/>
-                <line x1="192" y1="170" x2="258" y2="220"/>
-                <line x1="192" y1="170" x2="192" y2="234"/>
-              </g>
-              <g class="scene-packet" fill="#3FB68C"><circle r="3"/></g>
-              <g class="scene-packet-2" fill="#F0A93C"><circle r="3"/></g>
-              <circle cx="126" cy="120" r="7" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <circle cx="258" cy="120" r="7" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <circle cx="126" cy="220" r="7" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <circle cx="258" cy="220" r="7" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <circle cx="192" cy="234" r="7" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <text x="64" y="270" class="scene-tag">10,000+ endpoints</text>
-              <text x="64" y="288" class="scene-tag">multi-client · MSP</text>
-            </g>
-          </g>
-
-          <!-- SCENE: HELP DESK / ORIGIN -->
-          <g class="exp-scene-group" data-scene="origin">
-            <g class="scene-glyph">
-              <!-- classic headset support icon -->
-              <path d="M150 168a42 42 0 0 1 84 0" fill="none" stroke="#5B8FB0" stroke-width="6" stroke-linecap="round"/>
-              <rect x="142" y="166" width="14" height="26" rx="6" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <rect x="218" y="166" width="14" height="26" rx="6" fill="#161B22" stroke="#2A3140" stroke-width="1.5"/>
-              <path d="M156 192v8a10 10 0 0 0 10 10h6" fill="none" stroke="#5B8FB0" stroke-width="3" stroke-linecap="round"/>
-              <circle cx="174" cy="210" r="4" fill="#3FB68C" class="scene-blip"/>
-              <!-- ticket queue -->
-              <g stroke="#5C6573" stroke-width="1.5">
-                <rect x="100" y="226" width="60" height="14" rx="2" fill="#161B22" stroke="#2A3140"/>
-                <rect x="100" y="244" width="60" height="14" rx="2" fill="#161B22" stroke="#2A3140"/>
-                <rect x="100" y="262" width="60" height="14" rx="2" fill="#161B22" stroke="#2A3140"/>
-              </g>
-              <text x="195" y="236" class="scene-tag scene-tag-ok">ticket #4471 ✓</text>
-              <text x="195" y="254" class="scene-tag scene-tag-ok">ticket #4472 ✓</text>
-              <text x="195" y="272" class="scene-tag">ticket #4473…</text>
-            </g>
-          </g>
-
-        </svg>
+      <div class="exp-stage-inner" id="exp-stage-inner">
+        <canvas id="exp-canvas" class="exp-canvas" aria-hidden="true"></canvas>
 
         <div class="exp-stage-readout">
           <span class="exp-stage-org" id="exp-stage-org">Rapid Response Monitoring</span>
@@ -405,7 +276,7 @@
     <!-- SCROLLING CASE FILES -->
     <div class="exp-cases">
 
-      <article class="exp-case is-active" data-scene="soc" data-org="Rapid Response Monitoring Services (RRMS)" data-range="Oct 2023 – Jul 2025">
+      <article class="exp-case is-active" data-scene="terminal" data-org="Rapid Response Monitoring Services (RRMS)" data-range="Oct 2023 – Jul 2025">
         <div class="exp-case-meta">
           <span class="exp-case-range">2023 to 2025</span>
           <span class="exp-case-tag exp-case-tag-current">2025 to present</span>
@@ -424,7 +295,7 @@
         </div>
       </article>
 
-      <article class="exp-case" data-scene="solo" data-org="Self-Employed" data-range="Aug 2025 – present">
+      <article class="exp-case" data-scene="hacker" data-org="Self-Employed" data-range="Aug 2025 – present">
         <div class="exp-case-meta">
           <span class="exp-case-range">Aug 2025 to present</span>
         </div>
@@ -454,7 +325,7 @@
         </div>
       </article>
 
-      <article class="exp-case" data-scene="network" data-org="InSync Computer Solutions" data-range="Jun 2022 – Jan 2023">
+      <article class="exp-case" data-scene="ip" data-org="InSync Computer Solutions" data-range="Jun 2022 – Jan 2023">
         <div class="exp-case-meta">
           <span class="exp-case-range">Jun 2022 to Jan 2023</span>
         </div>
@@ -467,7 +338,7 @@
         </ul>
       </article>
 
-      <article class="exp-case" data-scene="origin" data-org="Apple · Keeco · SilverVentures · Apogee" data-range="2020 – 2022">
+      <article class="exp-case" data-scene="shield" data-org="Apple · Keeco · SilverVentures · Apogee" data-range="2020 – 2022">
         <div class="exp-case-meta">
           <span class="exp-case-range">2020 to 2022</span>
         </div>
