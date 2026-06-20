@@ -916,9 +916,23 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
   }
 
   function pushOutsideExclusion(x, y) {
-    // If x falls inside the text band, snap it to whichever side is closer,
-    // unless the band covers basically the whole width (narrow viewports) —
-    // then just let it sit behind at low opacity (handled via alpha elsewhere).
+    // Soft clamp: if x has drifted into the text band, push it to the
+    // nearest edge with a small fixed margin. Deterministic (no Math.random)
+    // because this runs every frame for hero nodes — a random offset here
+    // would make them visibly jitter/teleport each tick.
+    const bandWidth = exclX1 - exclX0;
+    if (bandWidth <= 0 || bandWidth > width * 0.86) return x;
+    if (x > exclX0 && x < exclX1) {
+      const distLeft = x - exclX0;
+      const distRight = exclX1 - x;
+      return distLeft < distRight ? exclX0 - 22 : exclX1 + 22;
+    }
+    return x;
+  }
+
+  // One-time variant (build-time only) that adds a small random spread so
+  // hero/ambient starting slots aren't all pinned to the exact same margin.
+  function pushOutsideExclusionSeeded(x, y) {
     const bandWidth = exclX1 - exclX0;
     if (bandWidth <= 0 || bandWidth > width * 0.86) return x;
     if (x > exclX0 && x < exclX1) {
@@ -946,7 +960,7 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
       } else {
         const col = i % 2;
         const row = Math.floor(i / 2);
-        bx = pushOutsideExclusion(exclX1 + width * 0.08 + col * (width - exclX1) * 0.4, 0);
+        bx = pushOutsideExclusionSeeded(exclX1 + width * 0.08 + col * (width - exclX1) * 0.4, 0);
         by = height * (0.22 + row * 0.26) + (Math.random() - 0.5) * 30;
       }
       nodes.push({
@@ -957,8 +971,12 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
         baseY: by,
         x: 0, y: 0,
         r: Math.min(width, height) * (narrowViewport ? 0.034 : 0.05),
-        phase: Math.random() * 1000,
-        drift: narrowViewport ? 6 : 12 + Math.random() * 8
+        phase: Math.random() * Math.PI * 2,
+        orbitRadius: (narrowViewport ? 10 : 26) + Math.random() * (narrowViewport ? 8 : 20),
+        orbitSpeed: (0.00018 + Math.random() * 0.00014) * (Math.random() < 0.5 ? 1 : -1),
+        orbitRatio: 0.55 + Math.random() * 0.5, // elliptical, not circular
+        bobPhase: Math.random() * Math.PI * 2,
+        bobSpeed: 0.0009 + Math.random() * 0.0006
       });
     }
 
@@ -968,7 +986,7 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
     for (let i = 0; i < ambientCount; i++) {
       let bx = Math.random() * width;
       const by = Math.random() * height;
-      if (!narrowViewport) bx = pushOutsideExclusion(bx, by);
+      if (!narrowViewport) bx = pushOutsideExclusionSeeded(bx, by);
       nodes.push({
         kind: 'ambient',
         icon: ICON_TYPES[Math.floor(Math.random() * ICON_TYPES.length)],
@@ -976,8 +994,12 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
         baseY: by,
         x: 0, y: 0,
         r: Math.min(width, height) * (0.012 + Math.random() * 0.012),
-        phase: Math.random() * 1000,
-        drift: 6 + Math.random() * 10,
+        phase: Math.random() * Math.PI * 2,
+        orbitRadius: 14 + Math.random() * 26,
+        orbitSpeed: (0.00022 + Math.random() * 0.00018) * (Math.random() < 0.5 ? 1 : -1),
+        orbitRatio: 0.5 + Math.random() * 0.6,
+        bobPhase: Math.random() * Math.PI * 2,
+        bobSpeed: 0.0007 + Math.random() * 0.0008,
         alpha: narrowViewport ? 0.1 + Math.random() * 0.12 : 0.22 + Math.random() * 0.26
       });
     }
@@ -1019,6 +1041,32 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
     const touch = e.touches[0];
     onPointerMove({ clientX: touch.clientX, clientY: touch.clientY });
   }, { passive: true });
+
+  // -------------------------------------------------------------------
+  // Scroll velocity — feeds the "dance": the field speeds up and drifts
+  // in the scroll direction while the visitor is actively scrolling, then
+  // eases back down to its idle orbit speed once they stop. This is what
+  // makes the nodes feel like they're responding to the page rather than
+  // just looping in place.
+  // -------------------------------------------------------------------
+  let lastScrollY = window.scrollY;
+  let scrollKick = 0;       // current intensity, eased toward target each frame
+  let scrollKickTarget = 0;
+  let scrollDir = 0;        // -1 up, 1 down, persists briefly after scroll stops
+  let scrollIdleTimer = null;
+
+  function onScroll() {
+    const sy = window.scrollY;
+    const delta = sy - lastScrollY;
+    lastScrollY = sy;
+    if (Math.abs(delta) > 0.5) {
+      scrollDir = delta > 0 ? 1 : -1;
+      scrollKickTarget = Math.min(1, Math.abs(delta) / 38);
+      clearTimeout(scrollIdleTimer);
+      scrollIdleTimer = setTimeout(() => { scrollKickTarget = 0; }, 140);
+    }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
 
   // -------------------------------------------------------------------
   // Active case tracking
@@ -1226,15 +1274,27 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
   }
 
   // -------------------------------------------------------------------
-  // Physics step — gentle drift + soft parallax offset, no per-node
-  // cursor-chasing (that was the source of the jittery feeling).
+  // Physics step — each node traces a real elliptical orbit around its
+  // anchor point. Orbit speed gets a temporary boost from scroll velocity
+  // (the "dance"), plus a slow independent bob so even at rest nothing
+  // sits perfectly still. No per-node cursor-chasing — only a shared
+  // field-wide parallax offset is applied later in frame().
   // -------------------------------------------------------------------
-  function stepNode(n, dt) {
-    n.phase += dt * 0.001;
-    const wobbleX = Math.sin(n.phase * 0.6 + n.baseX * 0.01) * n.drift;
-    const wobbleY = Math.cos(n.phase * 0.5 + n.baseY * 0.01) * n.drift;
-    n.x = n.baseX + wobbleX;
-    n.y = n.baseY + wobbleY;
+  function stepNode(n, dt, kick) {
+    const speedMul = 1 + kick * 3.2;
+    n.phase += n.orbitSpeed * dt * speedMul;
+    n.bobPhase += n.bobSpeed * dt * speedMul;
+
+    const orbitX = Math.cos(n.phase) * n.orbitRadius;
+    const orbitY = Math.sin(n.phase) * n.orbitRadius * n.orbitRatio;
+    const bob = Math.sin(n.bobPhase) * (n.orbitRadius * 0.18);
+
+    // scroll-direction drift: nodes lean the way the page is moving,
+    // strongest right when scrollKick is high, fading out with it
+    const scrollLean = scrollDir * kick * 16;
+
+    n.x = n.baseX + orbitX;
+    n.y = n.baseY + orbitY + bob + scrollLean;
   }
 
   function frame(dt) {
@@ -1242,6 +1302,7 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
     const ease = reduceMotion ? 1 : 0.05;
     mouseX += (targetMouseX - mouseX) * ease;
     mouseY += (targetMouseY - mouseY) * ease;
+    scrollKick += (scrollKickTarget - scrollKick) * (reduceMotion ? 1 : 0.08);
 
     ctx.clearRect(0, 0, width, height);
 
@@ -1249,11 +1310,18 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
     const activeIdx = cases.indexOf(activeCase);
 
     for (const n of nodes) {
-      if (!reduceMotion) stepNode(n, dt);
+      if (!reduceMotion) stepNode(n, dt, scrollKick);
       const px = mouseX * parallax * (n.kind === 'hero' ? 0.6 : 1);
       const py = mouseY * parallax * (n.kind === 'hero' ? 0.6 : 1);
-      const drawX = n.x + px;
-      const drawY = n.y + py;
+      let drawX = n.x + px;
+      let drawY = n.y + py;
+
+      // Hero nodes get a live exclusion check since their orbit can swing
+      // wide enough to approach the text column — ambient nodes are small
+      // and numerous enough that this isn't worth the per-frame cost.
+      if (n.kind === 'hero') {
+        drawX = pushOutsideExclusion(drawX, drawY);
+      }
 
       if (n.kind === 'hero') {
         const isActive = n.caseIndex === activeIdx;
