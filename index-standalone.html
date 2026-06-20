@@ -595,41 +595,28 @@ section {
    --------------------------------------------------------------------- */
 .exp-scroller {
   position: relative;
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 64px;
-  align-items: start;
 }
 
-.exp-stage {
+.exp-field-stage {
   position: sticky;
-  top: 96px;
-  height: 480px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.exp-stage-inner {
-  position: relative;
-  width: 100%;
-  height: 440px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background:
-    radial-gradient(ellipse 70% 60% at 50% 35%, rgba(91,143,176,0.07), transparent 70%),
-    var(--panel);
+  top: 0;
+  left: 50%;
+  width: 100vw;
+  margin-left: -50vw;
+  height: 100vh;
+  z-index: 0;
   overflow: hidden;
+  background: var(--graphite);
 }
 
-.exp-stage-inner::before {
+.exp-field-stage::before {
   content: '';
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
-  background-size: 28px 28px;
+    linear-gradient(to right, rgba(255,255,255,0.018) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 34px 34px;
   pointer-events: none;
 }
 
@@ -639,53 +626,53 @@ section {
   width: 100%;
   height: 100%;
   display: block;
-  cursor: default;
 }
 
-.exp-stage-readout {
+.exp-field-scrim {
   position: absolute;
-  left: 18px;
-  bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 70% at 22% 50%, rgba(13,17,23,0.78), transparent 62%),
+    linear-gradient(to bottom, rgba(13,17,23,0.5), transparent 18%, transparent 82%, rgba(13,17,23,0.65));
   pointer-events: none;
 }
-.exp-stage-org {
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  transition: opacity 0.3s ease;
-}
-.exp-stage-range {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
-  transition: opacity 0.3s ease;
-}
+
+/* readout label removed — org/date already shown in each case card */
 
 /* ---------------------------------------------------------------------
-   SCROLLING CASE FILES
+   SCROLLING CASE FILES — single readable column floating over the
+   sticky backdrop. Negative margin pulls it up to overlap the stage
+   so the first card appears "inside" the field on load.
    --------------------------------------------------------------------- */
 .exp-cases {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 0;
+  max-width: 620px;
+  margin-top: -100vh;
+  padding-top: 38vh;
 }
 
 .exp-case {
   position: relative;
-  padding: 28px 0 64px 32px;
+  padding: 28px 28px 64px 32px;
+  margin-bottom: 12px;
   border-left: 1px solid var(--line);
-  opacity: 0.4;
+  background: rgba(13, 17, 23, 0.74);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-radius: 0 10px 10px 0;
+  opacity: 0.5;
   filter: saturate(0.7);
-  transition: opacity 0.4s ease, filter 0.4s ease;
+  transition: opacity 0.4s ease, filter 0.4s ease, background 0.4s ease;
 }
 
 .exp-case.is-active {
   opacity: 1;
   filter: saturate(1);
+  background: rgba(13, 17, 23, 0.88);
 }
 
 .exp-case::before {
@@ -706,7 +693,7 @@ section {
   box-shadow: 0 0 0 4px rgba(91,143,176,0.14);
 }
 
-.exp-case:last-child { padding-bottom: 4px; }
+.exp-case:last-child { padding-bottom: 28px; margin-bottom: 0; }
 
 .exp-case-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 
@@ -1090,9 +1077,10 @@ section {
   .cred-grid { grid-template-columns: repeat(2, 1fr); }
   .cred-card-span { grid-column: span 2; }
   .lab-grid { grid-template-columns: 1fr; }
-  .exp-scroller { grid-template-columns: 280px 1fr; gap: 36px; }
-  .exp-stage { top: 80px; height: 380px; }
-  .exp-stage-inner { height: 340px; }
+  .exp-cases { max-width: 100%; padding-top: 34vh; }
+}
+
+@media (max-width: 640px) {
   .nav-links { display: none; }
   .nav-inner { padding: 16px 20px; }
   .hero { padding: 56px 20px 64px; }
@@ -1106,10 +1094,9 @@ section {
   .cred-grid { grid-template-columns: 1fr; }
   .cred-card-span { grid-column: span 1; flex-direction: column; align-items: flex-start; gap: 6px; }
   .cred-card-span h3 { margin-bottom: 6px; }
-  .exp-scroller { grid-template-columns: 1fr; gap: 28px; }
-  .exp-stage { position: static; top: auto; height: auto; }
-  .exp-stage-inner { height: 280px; }
-  .exp-case { padding-left: 20px; }
+  .exp-field-stage { height: 46vh; min-height: 280px; max-height: 380px; }
+  .exp-cases { max-width: 100%; margin-top: calc(-46vh); padding-top: calc(46vh - 64px); }
+  .exp-case { padding: 22px 18px 48px 22px; }
   .skills-row { grid-template-columns: 1fr; gap: 8px; }
 }
 
@@ -1358,7 +1345,7 @@ section {
   </div>
 </section>
 
-<!-- ============ EXPERIENCE LOG (sticky scene) ============ -->
+<!-- ============ EXPERIENCE LOG (full-bleed sticky field) ============ -->
 <section class="experience" id="experience">
   <div class="section-head">
     <h2>Experience</h2>
@@ -1367,16 +1354,13 @@ section {
 
   <div class="exp-scroller" id="exp-scroller">
 
-    <!-- PINNED VISUAL — stays fixed in viewport while case files scroll past -->
-    <div class="exp-stage">
-      <div class="exp-stage-inner" id="exp-stage-inner">
-        <canvas id="exp-canvas" class="exp-canvas" aria-hidden="true"></canvas>
-
-        <div class="exp-stage-readout">
-          <span class="exp-stage-org" id="exp-stage-org">Rapid Response Monitoring</span>
-          <span class="exp-stage-range" id="exp-stage-range">Oct 2023 – Jul 2025</span>
-        </div>
-      </div>
+    <!-- FULL-BLEED STICKY BACKDROP — a field of drifting security glyphs
+         (locks, shields, IPs, terminals, hooded operators) spans the entire
+         viewport width behind the text. Breaks out of the section's
+         max-width container intentionally. -->
+    <div class="exp-field-stage">
+      <canvas id="exp-canvas" class="exp-canvas" aria-hidden="true"></canvas>
+      <div class="exp-field-scrim"></div>
     </div>
 
     <!-- SCROLLING CASE FILES -->
@@ -2462,48 +2446,136 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
 })();
 
 // ===========================================================================
-// EXPERIENCE STICKY SCROLL — two glowing security "nodes" rendered on canvas.
-// They drift gently with the cursor (parallax, like Helion's plasma orbs),
-// and pull together into a single merged node as the visitor scrolls through
-// the case-file list. Each node displays an icon — terminal, hooded operator,
-// lock, IP/network, shield — that swaps to match whichever job is centered
-// in the viewport, with a faint matrix-style falling character rain inside
-// the terminal-type icons. No scroll-jacking: native scroll, just observed.
+// EXPERIENCE FIELD — a full-bleed sticky canvas behind the case-file column.
+// A scattered field of small security glyphs (locks, shields, IPs,
+// terminals, hooded operators) drifts slowly with gentle physics. The whole
+// field parallaxes a little with the cursor. One node per scroll-active job
+// is promoted to a brighter "hero" glyph that pulses while its case file is
+// in view, then hands off to the next as the visitor scrolls — a radar
+// sweep across the field rather than two shapes merging into one.
+// No scroll-jacking: native scroll, just observed.
 // ===========================================================================
 (function () {
-  const scroller   = document.getElementById('exp-scroller');
-  const stageInner = document.getElementById('exp-stage-inner');
-  const canvas     = document.getElementById('exp-canvas');
-  if (!scroller || !stageInner || !canvas) return;
+  const scroller = document.getElementById('exp-scroller');
+  const stage     = document.querySelector('.exp-field-stage');
+  const canvas    = document.getElementById('exp-canvas');
+  if (!scroller || !stage || !canvas) return;
 
   const cases  = Array.from(scroller.querySelectorAll('.exp-case'));
-  const orgEl  = document.getElementById('exp-stage-org');
-  const rangeEl= document.getElementById('exp-stage-range');
   if (!cases.length) return;
 
   const ctx = canvas.getContext('2d');
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const COLOR_STEEL  = '91, 143, 176';
-  const COLOR_GREEN  = '63, 182, 140';
-  const COLOR_AMBER  = '240, 169, 60';
-  const COLOR_TEXT   = '230, 232, 235';
+  const COLOR_STEEL = '91, 143, 176';
+  const COLOR_GREEN = '63, 182, 140';
+  const COLOR_TEXT  = '230, 232, 235';
 
   let width = 0, height = 0, dpr = 1;
-  let cx = 0, cy = 0;            // stage center
-  let mouseX = 0, mouseY = 0;    // pointer position relative to stage, -1..1
+  let mouseX = 0, mouseY = 0;        // normalized -1..1 relative to stage
   let targetMouseX = 0, targetMouseY = 0;
-  let mergeProgress = 0;         // 0 = apart, 1 = fully merged
-  let targetMerge = 0;
   let activeCase = cases[0];
   let rafId = null;
-  let matrixCols = [];
-  let t = 0; // animation clock
+  let t = 0;
+  let lastTime = performance.now();
 
-  const ICONS = ['terminal', 'hacker', 'lock', 'ip', 'shield'];
+  const ICON_TYPES = ['terminal', 'hacker', 'lock', 'ip', 'shield'];
+  const MATRIX_CHARS = '01アイウエオカキクケコサシスセソ$#@&%';
+  function randChar() { return MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)]; }
 
+  // -------------------------------------------------------------------
+  // Field of nodes — ambient ones drift everywhere; hero nodes (one per
+  // case) sit at semi-fixed "slots" and light up when their case is active.
+  // Nodes avoid a horizontal exclusion band where the text column sits,
+  // so glyphs never render directly behind readable copy.
+  // -------------------------------------------------------------------
+  let nodes = [];
+  let exclX0 = 0, exclX1 = 0; // text column's left/right edge, in stage-local coords
+
+  function computeExclusionZone() {
+    const casesEl = scroller.querySelector('.exp-cases');
+    if (!casesEl) { exclX0 = 0; exclX1 = 0; return; }
+    const stageRect = stage.getBoundingClientRect();
+    const casesRect = casesEl.getBoundingClientRect();
+    exclX0 = Math.max(0, casesRect.left - stageRect.left - 24);
+    exclX1 = Math.min(width, casesRect.right - stageRect.left + 24);
+  }
+
+  function pushOutsideExclusion(x, y) {
+    // If x falls inside the text band, snap it to whichever side is closer,
+    // unless the band covers basically the whole width (narrow viewports) —
+    // then just let it sit behind at low opacity (handled via alpha elsewhere).
+    const bandWidth = exclX1 - exclX0;
+    if (bandWidth <= 0 || bandWidth > width * 0.86) return x;
+    if (x > exclX0 && x < exclX1) {
+      const distLeft = x - exclX0;
+      const distRight = exclX1 - x;
+      return distLeft < distRight ? exclX0 - 18 - Math.random() * 30 : exclX1 + 18 + Math.random() * 30;
+    }
+    return x;
+  }
+
+  function buildField() {
+    nodes = [];
+    computeExclusionZone();
+    const narrowViewport = (exclX1 - exclX0) > width * 0.86;
+
+    // Hero nodes: one per case. On wide viewports they live in the open
+    // right-hand area; on narrow ones (where text fills the width) they
+    // fall back to a slim top strip above the first card.
+    const heroCount = cases.length;
+    for (let i = 0; i < heroCount; i++) {
+      let bx, by;
+      if (narrowViewport) {
+        bx = width * (0.12 + (i / Math.max(1, heroCount - 1)) * 0.76);
+        by = height * 0.12 + (Math.random() - 0.5) * 14;
+      } else {
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        bx = pushOutsideExclusion(exclX1 + width * 0.08 + col * (width - exclX1) * 0.4, 0);
+        by = height * (0.22 + row * 0.26) + (Math.random() - 0.5) * 30;
+      }
+      nodes.push({
+        kind: 'hero',
+        caseIndex: i,
+        icon: cases[i].dataset.scene || ICON_TYPES[i % ICON_TYPES.length],
+        baseX: bx,
+        baseY: by,
+        x: 0, y: 0,
+        r: Math.min(width, height) * (narrowViewport ? 0.034 : 0.05),
+        phase: Math.random() * 1000,
+        drift: narrowViewport ? 6 : 12 + Math.random() * 8
+      });
+    }
+
+    // Ambient nodes: smaller, plain dots/icons with no text, just texture.
+    // Kept out of the exclusion band too (or heavily dimmed if narrow).
+    const ambientCount = Math.max(8, Math.min(20, Math.floor((width * height) / 30000)));
+    for (let i = 0; i < ambientCount; i++) {
+      let bx = Math.random() * width;
+      const by = Math.random() * height;
+      if (!narrowViewport) bx = pushOutsideExclusion(bx, by);
+      nodes.push({
+        kind: 'ambient',
+        icon: ICON_TYPES[Math.floor(Math.random() * ICON_TYPES.length)],
+        baseX: bx,
+        baseY: by,
+        x: 0, y: 0,
+        r: Math.min(width, height) * (0.012 + Math.random() * 0.012),
+        phase: Math.random() * 1000,
+        drift: 6 + Math.random() * 10,
+        alpha: narrowViewport ? 0.1 + Math.random() * 0.12 : 0.22 + Math.random() * 0.26
+      });
+    }
+
+    for (const n of nodes) { n.x = n.baseX; n.y = n.baseY; }
+  }
+
+  // -------------------------------------------------------------------
+  // Resize
+  // -------------------------------------------------------------------
   function resize() {
-    const rect = stageInner.getBoundingClientRect();
+    const rect = stage.getBoundingClientRect();
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     width = rect.width;
     height = rect.height;
@@ -2512,72 +2584,36 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
     canvas.style.width = width + 'px';
     canvas.style.height = height + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    cx = width / 2;
-    cy = height / 2;
-    buildMatrixCols();
-  }
-
-  function buildMatrixCols() {
-    const colWidth = 11;
-    const count = Math.max(4, Math.floor((width * 0.42) / colWidth));
-    matrixCols = [];
-    for (let i = 0; i < count; i++) {
-      matrixCols.push({
-        x: i * colWidth,
-        y: Math.random() * -200,
-        speed: 0.6 + Math.random() * 1.2,
-        len: 4 + Math.floor(Math.random() * 6)
-      });
-    }
-  }
-
-  const MATRIX_CHARS = '01アイウエオカキクケコサシスセソ$#@&%';
-  function randChar() {
-    return MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)];
+    buildField();
   }
 
   // -------------------------------------------------------------------
-  // Pointer tracking — relative position within the stage, normalized
+  // Pointer tracking — whole-field parallax, not per-node chasing
   // -------------------------------------------------------------------
   function onPointerMove(e) {
-    const rect = stageInner.getBoundingClientRect();
+    const rect = stage.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    targetMouseX = Math.max(-1, Math.min(1, (x - cx) / cx));
-    targetMouseY = Math.max(-1, Math.min(1, (y - cy) / cy));
+    targetMouseX = Math.max(-1, Math.min(1, (x - width / 2) / (width / 2)));
+    targetMouseY = Math.max(-1, Math.min(1, (y - height / 2) / (height / 2)));
   }
-  function onPointerLeave() {
-    targetMouseX = 0;
-    targetMouseY = 0;
-  }
-  stageInner.addEventListener('mousemove', onPointerMove);
-  stageInner.addEventListener('mouseleave', onPointerLeave);
+  function onPointerLeave() { targetMouseX = 0; targetMouseY = 0; }
+  stage.addEventListener('mousemove', onPointerMove);
+  stage.addEventListener('mouseleave', onPointerLeave);
+  stage.addEventListener('touchmove', (e) => {
+    if (!e.touches || !e.touches.length) return;
+    const touch = e.touches[0];
+    onPointerMove({ clientX: touch.clientX, clientY: touch.clientY });
+  }, { passive: true });
 
   // -------------------------------------------------------------------
-  // Scroll tracking — merge progress derives from how far the visitor
-  // has scrolled through the .exp-scroller relative to viewport
-  // -------------------------------------------------------------------
-  function updateMergeFromScroll() {
-    const rect = scroller.getBoundingClientRect();
-    const total = rect.height - window.innerHeight;
-    if (total <= 0) { targetMerge = 0; return; }
-    const scrolled = Math.min(Math.max(-rect.top, 0), total);
-    targetMerge = Math.min(1, scrolled / total);
-  }
-
-  // -------------------------------------------------------------------
-  // Active case tracking (drives which icon pair shows + readout text)
+  // Active case tracking
   // -------------------------------------------------------------------
   function setActive(caseEl) {
     if (caseEl === activeCase) return;
     activeCase = caseEl;
     cases.forEach(c => c.classList.toggle('is-active', c === caseEl));
-    if (orgEl)   orgEl.textContent = caseEl.dataset.org || '';
-    if (rangeEl) rangeEl.textContent = caseEl.dataset.range || '';
   }
-
-  if (orgEl)   orgEl.textContent = cases[0].dataset.org || '';
-  if (rangeEl) rangeEl.textContent = cases[0].dataset.range || '';
 
   const observer = new IntersectionObserver((entries) => {
     let best = null, bestDist = Infinity;
@@ -2593,160 +2629,8 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
   cases.forEach(c => observer.observe(c));
 
   // -------------------------------------------------------------------
-  // Icon renderers — drawn in local space centered on (0,0), caller translates
+  // Icon renderers — local space centered on (0,0)
   // -------------------------------------------------------------------
-  function drawTerminal(r) {
-    const w = r * 1.5, h = r * 1.1;
-    ctx.save();
-    ctx.fillStyle = '#0D1117';
-    ctx.strokeStyle = `rgba(${COLOR_GREEN}, 0.55)`;
-    ctx.lineWidth = 1.5;
-    roundRect(-w / 2, -h / 2, w, h, 5);
-    ctx.fill(); ctx.stroke();
-
-    // matrix rain clipped to screen
-    ctx.save();
-    roundRectPath(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, 3);
-    ctx.clip();
-    ctx.font = '8px "JetBrains Mono", monospace';
-    ctx.textBaseline = 'top';
-    for (const col of matrixCols) {
-      const localX = -w / 2 + 3 + (col.x % (w - 6));
-      for (let i = 0; i < col.len; i++) {
-        const yy = -h / 2 + ((col.y + i * 9) % (h + 20)) - 10;
-        const fade = i === 0 ? 1 : 0.45 - i * 0.07;
-        if (fade <= 0) continue;
-        ctx.fillStyle = `rgba(${COLOR_GREEN}, ${Math.max(0, fade)})`;
-        ctx.fillText(randChar(), localX, yy);
-      }
-    }
-    ctx.restore();
-    ctx.restore();
-  }
-
-  function drawHacker(r) {
-    ctx.save();
-    // hood
-    ctx.fillStyle = '#161B22';
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.55);
-    ctx.quadraticCurveTo(-r * 0.5, -r * 0.5, -r * 0.42, r * 0.05);
-    ctx.quadraticCurveTo(-r * 0.55, r * 0.35, -r * 0.62, r * 0.62);
-    ctx.lineTo(r * 0.62, r * 0.62);
-    ctx.quadraticCurveTo(r * 0.55, r * 0.35, r * 0.42, r * 0.05);
-    ctx.quadraticCurveTo(r * 0.5, -r * 0.5, 0, -r * 0.55);
-    ctx.closePath();
-    ctx.fill(); ctx.stroke();
-    // face void
-    ctx.fillStyle = '#05070a';
-    ctx.beginPath();
-    ctx.ellipse(0, -r * 0.05, r * 0.26, r * 0.22, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // terminal glow reflecting on face
-    const glowPulse = 0.35 + Math.sin(t * 0.0022) * 0.18;
-    ctx.fillStyle = `rgba(${COLOR_GREEN}, ${glowPulse})`;
-    ctx.beginPath();
-    ctx.ellipse(0, -r * 0.05, r * 0.16, r * 0.1, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function drawLock(r) {
-    ctx.save();
-    const shackleLift = Math.max(0, Math.sin(t * 0.0014)) * 2;
-    ctx.strokeStyle = `rgba(${COLOR_STEEL}, 0.85)`;
-    ctx.lineWidth = r * 0.16;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.arc(0, -r * 0.18 - shackleLift, r * 0.34, Math.PI, 0);
-    ctx.stroke();
-
-    ctx.fillStyle = '#161B22';
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.lineWidth = 1;
-    roundRect(-r * 0.46, -r * 0.1, r * 0.92, r * 0.62, r * 0.1);
-    ctx.fill(); ctx.stroke();
-
-    ctx.fillStyle = `rgba(${COLOR_GREEN}, 0.9)`;
-    ctx.beginPath();
-    ctx.arc(0, r * 0.16, r * 0.09, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(-r * 0.03, r * 0.16, r * 0.06, r * 0.16);
-    ctx.restore();
-  }
-
-  function drawIP(r) {
-    ctx.save();
-    ctx.font = `${r * 0.24}px "JetBrains Mono", monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    // hub node
-    ctx.fillStyle = '#161B22';
-    ctx.strokeStyle = `rgba(${COLOR_STEEL}, 0.8)`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.16, 0, Math.PI * 2);
-    ctx.fill(); ctx.stroke();
-
-    // spokes
-    const spokes = 4;
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < spokes; i++) {
-      const ang = (Math.PI * 2 * i) / spokes + Math.PI / 4;
-      const ex = Math.cos(ang) * r * 0.55;
-      const ey = Math.sin(ang) * r * 0.55;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(ex, ey);
-      ctx.stroke();
-      ctx.fillStyle = '#161B22';
-      ctx.beginPath();
-      ctx.arc(ex, ey, r * 0.07, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    }
-
-    // blocked IP tag
-    ctx.fillStyle = `rgba(${COLOR_TEXT}, 0.55)`;
-    ctx.fillText('10.0.4.18', 0, r * 0.82);
-    ctx.restore();
-  }
-
-  function drawShield(r) {
-    ctx.save();
-    ctx.fillStyle = '#161B22';
-    ctx.strokeStyle = `rgba(${COLOR_STEEL}, 0.8)`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.6);
-    ctx.quadraticCurveTo(r * 0.5, -r * 0.42, r * 0.5, -r * 0.05);
-    ctx.quadraticCurveTo(r * 0.5, r * 0.42, 0, r * 0.62);
-    ctx.quadraticCurveTo(-r * 0.5, r * 0.42, -r * 0.5, -r * 0.05);
-    ctx.quadraticCurveTo(-r * 0.5, -r * 0.42, 0, -r * 0.6);
-    ctx.closePath();
-    ctx.fill(); ctx.stroke();
-
-    const pulse = 0.7 + Math.sin(t * 0.003) * 0.3;
-    ctx.strokeStyle = `rgba(${COLOR_GREEN}, ${pulse})`;
-    ctx.lineWidth = r * 0.1;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(-r * 0.22, 0);
-    ctx.lineTo(-r * 0.05, r * 0.18);
-    ctx.lineTo(r * 0.26, -r * 0.18);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  const ICON_DRAW = { terminal: drawTerminal, hacker: drawHacker, lock: drawLock, ip: drawIP, shield: drawShield };
-
   function roundRectPath(x, y, w, h, rad) {
     ctx.beginPath();
     ctx.moveTo(x + rad, y);
@@ -2756,137 +2640,228 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
     ctx.arcTo(x, y, x + w, y, rad);
     ctx.closePath();
   }
-  function roundRect(x, y, w, h, rad) { roundRectPath(x, y, w, h, rad); }
 
-  // -------------------------------------------------------------------
-  // Node glow + icon composite
-  // -------------------------------------------------------------------
-  function drawNode(x, y, r, iconType, glowAlpha) {
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, r * 1.9);
-    grad.addColorStop(0, `rgba(${COLOR_STEEL}, ${0.55 * glowAlpha})`);
-    grad.addColorStop(0.5, `rgba(${COLOR_STEEL}, ${0.22 * glowAlpha})`);
-    grad.addColorStop(1, `rgba(${COLOR_STEEL}, 0)`);
-    ctx.fillStyle = grad;
+  function drawTerminal(r, bright) {
+    const w = r * 1.5, h = r * 1.1;
+    ctx.fillStyle = '#0D1117';
+    ctx.strokeStyle = `rgba(${COLOR_GREEN}, ${bright ? 0.6 : 0.35})`;
+    ctx.lineWidth = 1.4;
+    roundRectPath(-w / 2, -h / 2, w, h, r * 0.12);
+    ctx.fill(); ctx.stroke();
+    if (!bright) return;
+    ctx.save();
+    roundRectPath(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, r * 0.08);
+    ctx.clip();
+    ctx.font = `${Math.max(7, r * 0.22)}px "JetBrains Mono", monospace`;
+    ctx.textBaseline = 'top';
+    const rowH = Math.max(7, r * 0.24);
+    const rows = Math.floor(h / rowH);
+    for (let row = 0; row < rows; row++) {
+      const yy = -h / 2 + row * rowH + ((t * 0.04 + row * 13) % rowH) - rowH;
+      const fade = 0.85 - row * 0.12;
+      if (fade <= 0) continue;
+      ctx.fillStyle = `rgba(${COLOR_GREEN}, ${Math.max(0, fade)})`;
+      ctx.fillText(randChar() + randChar(), -w / 2 + 3, yy);
+    }
+    ctx.restore();
+  }
+
+  function drawHacker(r, bright) {
+    ctx.fillStyle = '#161B22';
+    ctx.strokeStyle = `rgba(255,255,255,${bright ? 0.12 : 0.06})`;
+    ctx.lineWidth = 1.1;
     ctx.beginPath();
-    ctx.arc(x, y, r * 1.9, 0, Math.PI * 2);
+    ctx.moveTo(0, -r * 0.55);
+    ctx.quadraticCurveTo(-r * 0.5, -r * 0.5, -r * 0.42, r * 0.05);
+    ctx.quadraticCurveTo(-r * 0.55, r * 0.35, -r * 0.62, r * 0.62);
+    ctx.lineTo(r * 0.62, r * 0.62);
+    ctx.quadraticCurveTo(r * 0.55, r * 0.35, r * 0.42, r * 0.05);
+    ctx.quadraticCurveTo(r * 0.5, -r * 0.5, 0, -r * 0.55);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#05070a';
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.05, r * 0.26, r * 0.22, 0, 0, Math.PI * 2);
     ctx.fill();
-
-    // base disc
-    ctx.fillStyle = 'rgba(22, 27, 34, 0.9)';
-    ctx.strokeStyle = `rgba(${COLOR_STEEL}, ${0.5 * glowAlpha})`;
-    ctx.lineWidth = 1.5;
+    if (!bright) return;
+    const glowPulse = 0.35 + Math.sin(t * 0.0022) * 0.18;
+    ctx.fillStyle = `rgba(${COLOR_GREEN}, ${glowPulse})`;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.ellipse(0, -r * 0.05, r * 0.16, r * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawLock(r, bright) {
+    const lift = bright ? Math.max(0, Math.sin(t * 0.0014)) * 2 : 0;
+    ctx.strokeStyle = `rgba(${COLOR_STEEL}, ${bright ? 0.85 : 0.4})`;
+    ctx.lineWidth = r * 0.16;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.18 - lift, r * 0.34, Math.PI, 0);
+    ctx.stroke();
+    ctx.fillStyle = '#161B22';
+    ctx.strokeStyle = `rgba(255,255,255,${bright ? 0.1 : 0.05})`;
+    ctx.lineWidth = 1;
+    roundRectPath(-r * 0.46, -r * 0.1, r * 0.92, r * 0.62, r * 0.1);
+    ctx.fill(); ctx.stroke();
+    if (!bright) return;
+    ctx.fillStyle = `rgba(${COLOR_GREEN}, 0.9)`;
+    ctx.beginPath();
+    ctx.arc(0, r * 0.16, r * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-r * 0.03, r * 0.16, r * 0.06, r * 0.16);
+  }
+
+  function drawIP(r, bright) {
+    ctx.fillStyle = '#161B22';
+    ctx.strokeStyle = `rgba(${COLOR_STEEL}, ${bright ? 0.8 : 0.4})`;
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.16, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    const spokes = 4;
+    ctx.strokeStyle = `rgba(255,255,255,${bright ? 0.14 : 0.06})`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < spokes; i++) {
+      const ang = (Math.PI * 2 * i) / spokes + Math.PI / 4;
+      const ex = Math.cos(ang) * r * 0.55;
+      const ey = Math.sin(ang) * r * 0.55;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.fillStyle = '#161B22';
+      ctx.beginPath(); ctx.arc(ex, ey, r * 0.07, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,255,${bright ? 0.12 : 0.05})`;
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${bright ? 0.14 : 0.06})`;
+    }
+    if (!bright) return;
+    ctx.font = `${r * 0.24}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = `rgba(${COLOR_TEXT}, 0.55)`;
+    ctx.fillText('10.0.4.18', 0, r * 0.82);
+  }
+
+  function drawShield(r, bright) {
+    ctx.fillStyle = '#161B22';
+    ctx.strokeStyle = `rgba(${COLOR_STEEL}, ${bright ? 0.8 : 0.4})`;
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.6);
+    ctx.quadraticCurveTo(r * 0.5, -r * 0.42, r * 0.5, -r * 0.05);
+    ctx.quadraticCurveTo(r * 0.5, r * 0.42, 0, r * 0.62);
+    ctx.quadraticCurveTo(-r * 0.5, r * 0.42, -r * 0.5, -r * 0.05);
+    ctx.quadraticCurveTo(-r * 0.5, -r * 0.42, 0, -r * 0.6);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    if (!bright) return;
+    const pulse = 0.7 + Math.sin(t * 0.003) * 0.3;
+    ctx.strokeStyle = `rgba(${COLOR_GREEN}, ${pulse})`;
+    ctx.lineWidth = r * 0.1;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.22, 0);
+    ctx.lineTo(-r * 0.05, r * 0.18);
+    ctx.lineTo(r * 0.26, -r * 0.18);
+    ctx.stroke();
+  }
+
+  const ICON_DRAW = { terminal: drawTerminal, hacker: drawHacker, lock: drawLock, ip: drawIP, shield: drawShield };
+
+  // -------------------------------------------------------------------
+  // Per-node composite: glow + base disc + icon
+  // -------------------------------------------------------------------
+  function drawNode(n, x, y, bright, glowAlpha) {
+    const r = n.r;
+    if (bright || n.kind === 'hero') {
+      const grad = ctx.createRadialGradient(x, y, 0, x, y, r * 2.1);
+      grad.addColorStop(0, `rgba(${COLOR_STEEL}, ${0.5 * glowAlpha})`);
+      grad.addColorStop(0.55, `rgba(${COLOR_STEEL}, ${0.18 * glowAlpha})`);
+      grad.addColorStop(1, `rgba(${COLOR_STEEL}, 0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 2.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.save();
+    ctx.globalAlpha = n.kind === 'ambient' ? n.alpha : 1;
+    ctx.translate(x, y);
+
+    ctx.fillStyle = `rgba(22, 27, 34, ${bright ? 0.92 : 0.7})`;
+    ctx.strokeStyle = `rgba(${COLOR_STEEL}, ${(bright ? 0.55 : 0.25) * glowAlpha})`;
+    ctx.lineWidth = bright ? 1.4 : 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fill(); ctx.stroke();
 
-    // rotating dashed ring
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate((t * 0.00015) % (Math.PI * 2));
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([2, 7]);
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 1.18, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    if (bright) {
+      ctx.save();
+      ctx.rotate((t * 0.00012) % (Math.PI * 2));
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 7]);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.22, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
 
-    // icon
-    ctx.save();
-    ctx.translate(x, y);
-    const draw = ICON_DRAW[iconType] || drawTerminal;
-    draw(r * 0.78);
+    const draw = ICON_DRAW[n.icon] || drawTerminal;
+    draw(r * 0.78, bright);
     ctx.restore();
   }
 
   // -------------------------------------------------------------------
-  // Merge bridge — cheap metaball approximation between two equal circles:
-  // draw a stretched lens shape that grows as the circles approach,
-  // capped/clipped by the circle radius so it never overshoots.
+  // Physics step — gentle drift + soft parallax offset, no per-node
+  // cursor-chasing (that was the source of the jittery feeling).
   // -------------------------------------------------------------------
-  function drawBridge(x1, y, x2, r, alpha) {
-    if (alpha <= 0) return;
-    const midX = (x1 + x2) / 2;
-    const halfGap = Math.abs(x2 - x1) / 2;
-    const bridgeW = Math.max(0, r - halfGap * 0.55);
-    if (bridgeW <= 0) return;
-    const bridgeH = r * 0.62 * alpha;
-
-    const grad = ctx.createLinearGradient(midX - bridgeW, y, midX + bridgeW, y);
-    grad.addColorStop(0, `rgba(${COLOR_STEEL}, 0)`);
-    grad.addColorStop(0.5, `rgba(${COLOR_STEEL}, ${0.85 * alpha})`);
-    grad.addColorStop(1, `rgba(${COLOR_STEEL}, 0)`);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.ellipse(midX, y, bridgeW, bridgeH, 0, 0, Math.PI * 2);
-    ctx.fill();
+  function stepNode(n, dt) {
+    n.phase += dt * 0.001;
+    const wobbleX = Math.sin(n.phase * 0.6 + n.baseX * 0.01) * n.drift;
+    const wobbleY = Math.cos(n.phase * 0.5 + n.baseY * 0.01) * n.drift;
+    n.x = n.baseX + wobbleX;
+    n.y = n.baseY + wobbleY;
   }
 
-  // -------------------------------------------------------------------
-  // Main render loop
-  // -------------------------------------------------------------------
   function frame(dt) {
     t += dt;
-
-    // ease pointer + merge toward targets
-    const ease = reduceMotion ? 1 : 0.06;
+    const ease = reduceMotion ? 1 : 0.05;
     mouseX += (targetMouseX - mouseX) * ease;
     mouseY += (targetMouseY - mouseY) * ease;
-    mergeProgress += (targetMerge - mergeProgress) * (reduceMotion ? 1 : 0.08);
-
-    // matrix rain advance
-    if (!reduceMotion) {
-      for (const col of matrixCols) {
-        col.y += col.speed;
-        if (col.y > height + 40) col.y = Math.random() * -100;
-      }
-    }
 
     ctx.clearRect(0, 0, width, height);
 
-    const baseR = Math.min(width, height) * 0.155;
-    const idleFloat = reduceMotion ? 0 : Math.sin(t * 0.0009) * 6;
-    const idleFloat2 = reduceMotion ? 0 : Math.cos(t * 0.0011) * 6;
-
-    // base separated positions (left/right of center, slightly different heights)
-    const sep = (1 - mergeProgress) * (width * 0.22);
-    const parallaxStrength = 18;
-
-    const x1 = cx - sep + mouseX * parallaxStrength + idleFloat * 0.4;
-    const y1 = cy - height * 0.05 + mouseY * parallaxStrength * 0.6 + idleFloat;
-    const x2 = cx + sep + mouseX * parallaxStrength * 0.7 + idleFloat2 * 0.4;
-    const y2 = cy + height * 0.06 + mouseY * parallaxStrength * 0.6 + idleFloat2;
-
-    // icon for node 1 = active case scene; node 2 = next case in list (preview)
+    const parallax = 22;
     const activeIdx = cases.indexOf(activeCase);
-    const icon1 = activeCase.dataset.scene || 'terminal';
-    const nextCase = cases[(activeIdx + 1) % cases.length];
-    const icon2 = mergeProgress > 0.9 ? icon1 : (nextCase.dataset.scene || 'shield');
 
-    // bridge first (sits behind nodes)
-    drawBridge(x1, (y1 + y2) / 2, x2, baseR, Math.max(0, (mergeProgress - 0.55) / 0.45));
+    for (const n of nodes) {
+      if (!reduceMotion) stepNode(n, dt);
+      const px = mouseX * parallax * (n.kind === 'hero' ? 0.6 : 1);
+      const py = mouseY * parallax * (n.kind === 'hero' ? 0.6 : 1);
+      const drawX = n.x + px;
+      const drawY = n.y + py;
 
-    const fadeOutSecond = Math.max(0, 1 - Math.max(0, (mergeProgress - 0.75) / 0.25));
-    drawNode(x1, y1, baseR, icon1, 1);
-    if (fadeOutSecond > 0.02) drawNode(x2, y2, baseR * (0.85 + 0.15 * fadeOutSecond), icon2, fadeOutSecond);
-
-    if (!reduceMotion) {
-      rafId = requestAnimationFrame(step);
+      if (n.kind === 'hero') {
+        const isActive = n.caseIndex === activeIdx;
+        const pulse = isActive ? 0.85 + Math.sin(t * 0.0026) * 0.15 : 1;
+        drawNode(n, drawX, drawY, isActive, isActive ? pulse : 0.3);
+      } else {
+        drawNode(n, drawX, drawY, false, 1);
+      }
     }
+
+    if (!reduceMotion) rafId = requestAnimationFrame(step);
   }
 
-  let lastTime = performance.now();
   function step(now) {
     const dt = Math.min(48, now - lastTime);
     lastTime = now;
-    updateMergeFromScroll();
     frame(dt);
   }
 
   function init() {
     resize();
     lastTime = performance.now();
-    updateMergeFromScroll();
     if (reduceMotion) {
       frame(16);
     } else {
@@ -2900,9 +2875,6 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
     clearTimeout(expResizeTimeout);
     expResizeTimeout = setTimeout(init, 200);
   });
-  window.addEventListener('scroll', () => {
-    if (reduceMotion) { updateMergeFromScroll(); frame(16); }
-  }, { passive: true });
 
   init();
 })();

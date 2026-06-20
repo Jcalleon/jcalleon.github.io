@@ -251,7 +251,7 @@
   </div>
 </section>
 
-<!-- ============ EXPERIENCE LOG (sticky scene) ============ -->
+<!-- ============ EXPERIENCE LOG (full-bleed sticky field) ============ -->
 <section class="experience" id="experience">
   <div class="section-head">
     <h2>Experience</h2>
@@ -260,17 +260,13 @@
 
   <div class="exp-scroller" id="exp-scroller">
 
-    <!-- PINNED VISUAL — two glowing security nodes drift with the cursor and
-         merge together as the case files scroll past -->
-    <div class="exp-stage">
-      <div class="exp-stage-inner" id="exp-stage-inner">
-        <canvas id="exp-canvas" class="exp-canvas" aria-hidden="true"></canvas>
-
-        <div class="exp-stage-readout">
-          <span class="exp-stage-org" id="exp-stage-org">Rapid Response Monitoring</span>
-          <span class="exp-stage-range" id="exp-stage-range">Oct 2023 – Jul 2025</span>
-        </div>
-      </div>
+    <!-- FULL-BLEED STICKY BACKDROP — a field of drifting security glyphs
+         (locks, shields, IPs, terminals, hooded operators) spans the entire
+         viewport width behind the text. Breaks out of the section's
+         max-width container intentionally. -->
+    <div class="exp-field-stage">
+      <canvas id="exp-canvas" class="exp-canvas" aria-hidden="true"></canvas>
+      <div class="exp-field-scrim"></div>
     </div>
 
     <!-- SCROLLING CASE FILES -->
