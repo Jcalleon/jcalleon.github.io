@@ -21,7 +21,7 @@ function formatDate(iso) {
 function daysSince(iso) {
   const now = new Date("2026-06-23T08:15:00Z");
   const then = new Date(iso);
-  const days = Math.floor((now - then) / (1000 * 60 * 60 * 24));
+  const days = Math.max(0, Math.floor((now - then) / (1000 * 60 * 60 * 24)));
   if (days === 0) return "today";
   if (days === 1) return "1 day ago";
   return `${days} days ago`;
@@ -51,7 +51,7 @@ function renderBoard() {
         <span class="kanban-column-title">${stage}</span>
         <span class="kanban-column-value">${formatCurrency(stageValue)}</span>
       </div>
-      <div class="kanban-column-body" id="col-${stage.replace(/\s+/g, "-")}"></div>
+      <div class="kanban-column-body" id="col-${stage.replace(/\s+/g, "-")}" data-stage="${stage}"></div>
     `;
     wrapper.appendChild(col);
   }
@@ -64,23 +64,48 @@ function renderBoard() {
 
     if (stageDeals.length === 0) {
       colBody.innerHTML = `<div class="empty-state" style="padding:24px 8px;">No deals</div>`;
-      continue;
+    } else {
+      for (const deal of stageDeals) {
+        const card = document.createElement("div");
+        card.className = "deal-card";
+        card.draggable = true;
+        card.dataset.dealId = deal.id;
+        card.innerHTML = `
+          <div class="deal-card-company">${deal.company}</div>
+          <div class="deal-card-contact">${deal.contact}</div>
+          <div class="deal-card-footer">
+            <span class="deal-card-value">${formatCurrency(deal.value)}</span>
+            <span class="deal-card-activity">${daysSince(deal.lastActivity)}</span>
+          </div>
+        `;
+        card.addEventListener("click", () => openDrawer(deal.id));
+        card.addEventListener("dragstart", (e) => {
+          e.dataTransfer.setData("text/plain", deal.id);
+          card.classList.add("dragging");
+        });
+        card.addEventListener("dragend", () => card.classList.remove("dragging"));
+        colBody.appendChild(card);
+      }
     }
 
-    for (const deal of stageDeals) {
-      const card = document.createElement("div");
-      card.className = "deal-card";
-      card.innerHTML = `
-        <div class="deal-card-company">${deal.company}</div>
-        <div class="deal-card-contact">${deal.contact}</div>
-        <div class="deal-card-footer">
-          <span class="deal-card-value">${formatCurrency(deal.value)}</span>
-          <span class="deal-card-activity">${daysSince(deal.lastActivity)}</span>
-        </div>
-      `;
-      card.addEventListener("click", () => openDrawer(deal.id));
-      colBody.appendChild(card);
-    }
+    // Make the column body a drop target regardless of whether it has cards
+    colBody.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      colBody.classList.add("drop-target");
+    });
+    colBody.addEventListener("dragleave", () => {
+      colBody.classList.remove("drop-target");
+    });
+    colBody.addEventListener("drop", (e) => {
+      e.preventDefault();
+      colBody.classList.remove("drop-target");
+      const dealId = e.dataTransfer.getData("text/plain");
+      const deal = deals.find((d) => d.id === dealId);
+      if (deal && deal.stage !== stage) {
+        deal.stage = stage;
+        renderBoard();
+      }
+    });
   }
 
   updateTotal();
@@ -220,6 +245,91 @@ drawerOverlay.addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeDrawer();
 });
+
+// ---- New deal modal ----
+let dealCounter = 3042;
+
+const newDealModal = document.createElement("div");
+newDealModal.className = "modal-overlay";
+newDealModal.id = "new-deal-modal";
+newDealModal.innerHTML = `
+  <div class="modal">
+    <div class="drawer-title" style="margin-bottom:16px;">New deal</div>
+    <div class="form-row">
+      <label class="form-label">Company</label>
+      <input class="form-input" id="nd-company" placeholder="Acme Corp" />
+    </div>
+    <div class="form-row">
+      <label class="form-label">Contact (name, title)</label>
+      <input class="form-input" id="nd-contact" placeholder="Jane Doe, VP Sales" />
+    </div>
+    <div class="form-row">
+      <label class="form-label">Deal value ($)</label>
+      <input class="form-input" id="nd-value" type="number" placeholder="25000" />
+    </div>
+    <div class="form-row">
+      <label class="form-label">Stage</label>
+      <select class="form-input" id="nd-stage">
+        ${STAGES.map((s) => `<option value="${s}">${s}</option>`).join("")}
+      </select>
+    </div>
+    <div class="form-row">
+      <label class="form-label">First note</label>
+      <textarea class="form-textarea" id="nd-note" placeholder="How did this deal start?"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="nd-cancel">Cancel</button>
+      <button class="copilot-trigger" id="nd-submit">Add deal</button>
+    </div>
+  </div>
+`;
+document.body.appendChild(newDealModal);
+
+function openNewDealModal() {
+  newDealModal.classList.add("open");
+}
+function closeNewDealModal() {
+  newDealModal.classList.remove("open");
+}
+
+document.getElementById("new-deal-btn").onclick = openNewDealModal;
+
+newDealModal.addEventListener("click", (e) => {
+  if (e.target === newDealModal) closeNewDealModal();
+});
+document.getElementById("nd-cancel").onclick = closeNewDealModal;
+
+document.getElementById("nd-submit").onclick = () => {
+  const company = document.getElementById("nd-company").value.trim();
+  const contact = document.getElementById("nd-contact").value.trim();
+  const valueRaw = document.getElementById("nd-value").value.trim();
+  const stage = document.getElementById("nd-stage").value;
+  const note = document.getElementById("nd-note").value.trim();
+
+  if (!company) return;
+
+  const newDeal = {
+    id: `DL-${dealCounter++}`,
+    company,
+    contact: contact || "Unknown contact",
+    value: valueRaw ? parseInt(valueRaw, 10) : 0,
+    stage,
+    lastActivity: new Date().toISOString(),
+    notes: [note || `${new Date().toISOString().slice(0, 10)}: Deal created.`],
+  };
+
+  deals.push(newDeal);
+  closeNewDealModal();
+
+  document.getElementById("nd-company").value = "";
+  document.getElementById("nd-contact").value = "";
+  document.getElementById("nd-value").value = "";
+  document.getElementById("nd-note").value = "";
+  document.getElementById("nd-stage").value = STAGES[0];
+
+  renderBoard();
+  openDrawer(newDeal.id);
+};
 
 // ---- Init ----
 renderBoard();
