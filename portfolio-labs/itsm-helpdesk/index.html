@@ -33,6 +33,10 @@
         <span>All tickets</span>
         <span class="nav-item-count" id="count-all">0</span>
       </div>
+      <div class="nav-item" data-filter="mine">
+        <span>My tickets</span>
+        <span class="nav-item-count" id="count-mine">0</span>
+      </div>
       <div class="nav-item" data-filter="new">
         <span>New</span>
         <span class="nav-item-count" id="count-new">0</span>
@@ -76,13 +80,30 @@
       </div>
 
       <div class="panel" id="queue-panel" style="display:none;">
+        <div style="padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px;">
+          <input type="text" id="search-input" class="form-input" placeholder="Search by subject, requester, or ticket ID..." style="flex:1; max-width:360px;" />
+          <div id="bulk-action-bar" style="display:none; align-items:center; gap:8px; margin-left:auto;">
+            <span id="bulk-count" class="mono" style="font-size:12px; color:var(--text-dim);"></span>
+            <select id="bulk-status-select" class="status-select">
+              <option value="">Mark as...</option>
+              <option value="new">New</option>
+              <option value="investigating">In progress</option>
+              <option value="resolved">Resolved</option>
+            </select>
+            <select id="bulk-assign-select" class="status-select">
+              <option value="">Assign to...</option>
+            </select>
+          </div>
+        </div>
         <table class="table" id="ticket-table">
           <thead>
             <tr>
+              <th style="width:30px;"><input type="checkbox" id="select-all-checkbox" /></th>
               <th>Priority</th>
               <th>Ticket</th>
               <th>Requester</th>
               <th>Category</th>
+              <th>Assigned</th>
               <th>Status</th>
               <th>SLA</th>
             </tr>

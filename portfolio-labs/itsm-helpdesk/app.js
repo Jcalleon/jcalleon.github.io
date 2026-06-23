@@ -1,9 +1,13 @@
 // ITSM Helpdesk — agent app logic (real backend via D1)
 
 let tickets = [];
+let agents = [];
 let currentFilter = "all";
 let currentPriFilter = null;
 let selectedTicketId = null;
+let searchQuery = "";
+let selectedTicketIds = new Set();
+let currentUser = null;
 
 const tbody = document.getElementById("ticket-tbody");
 const drawer = document.getElementById("drawer");
@@ -28,6 +32,9 @@ function slaStatus(slaIso, status) {
 
 function updateCounts() {
   document.getElementById("count-all").textContent = tickets.length;
+  document.getElementById("count-mine").textContent = currentUser
+    ? tickets.filter((t) => t.assigned_to === currentUser.id).length
+    : 0;
   document.getElementById("count-new").textContent = tickets.filter((t) => t.status === "new").length;
   document.getElementById("count-investigating").textContent = tickets.filter((t) => t.status === "investigating").length;
   document.getElementById("count-resolved").textContent = tickets.filter((t) => t.status === "resolved").length;
@@ -38,17 +45,32 @@ function updateCounts() {
 
 function getFilteredTickets() {
   let list = [...tickets];
-  if (currentFilter !== "all") list = list.filter((t) => t.status === currentFilter);
+  if (currentFilter === "mine") {
+    list = list.filter((t) => currentUser && t.assigned_to === currentUser.id);
+  } else if (currentFilter !== "all") {
+    list = list.filter((t) => t.status === currentFilter);
+  }
   if (currentPriFilter) list = list.filter((t) => t.priority === currentPriFilter);
+
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    list = list.filter((t) =>
+      t.subject.toLowerCase().includes(q) ||
+      t.requester.toLowerCase().includes(q) ||
+      t.id.toLowerCase().includes(q)
+    );
+  }
+
   return list;
 }
 
 function renderTable() {
   const list = getFilteredTickets();
   tbody.innerHTML = "";
+  updateBulkBar();
 
   if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No tickets match this filter.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">No tickets match this filter.</div></td></tr>`;
     return;
   }
 
@@ -57,21 +79,45 @@ function renderTable() {
     const tr = document.createElement("tr");
     tr.className = t.id === selectedTicketId ? "selected" : "";
     tr.innerHTML = `
+      <td><input type="checkbox" class="row-checkbox" data-id="${t.id}" ${selectedTicketIds.has(t.id) ? "checked" : ""} /></td>
       <td><span class="badge badge-${t.priority === "high" ? "critical" : t.priority === "medium" ? "medium" : "low"}">${t.priority}</span></td>
       <td>
         <div class="ticket-title-cell">
-          <span class="ticket-title-main">${t.subject}</span>
+          <span class="ticket-title-main">${t.has_unread_reply ? '<span class="unread-dot" title="New reply"></span>' : ""}${t.subject}</span>
           <span class="ticket-title-id mono">${t.id} · ${t.department}</span>
         </div>
       </td>
       <td>${t.requester}</td>
       <td>${t.category}</td>
+      <td style="font-size:12px; color:var(--text-secondary);">${t.assigned_email || "—"}</td>
       <td><span class="badge badge-${statusBadgeClass(t.status)}">${statusLabel(t.status)}</span></td>
       <td><span class="sla-countdown ${sla.cls}">${sla.label}</span></td>
     `;
+    tr.querySelector(".row-checkbox").addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (e.target.checked) selectedTicketIds.add(t.id);
+      else selectedTicketIds.delete(t.id);
+      updateBulkBar();
+    });
     tr.addEventListener("click", () => openDrawer(t.id));
     tbody.appendChild(tr);
   }
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById("bulk-action-bar");
+  const count = selectedTicketIds.size;
+  if (count === 0) {
+    bar.style.display = "none";
+  } else {
+    bar.style.display = "flex";
+    document.getElementById("bulk-count").textContent = `${count} selected`;
+  }
+
+  // Keep the header checkbox in sync with actual selection state for the visible list.
+  const visible = getFilteredTickets();
+  const allSelected = visible.length > 0 && visible.every((t) => selectedTicketIds.has(t.id));
+  document.getElementById("select-all-checkbox").checked = allSelected;
 }
 
 function statusBadgeClass(status) {
@@ -101,10 +147,13 @@ async function openDrawer(ticketId) {
   if (!res.ok) return;
 
   drawerTicketId.textContent = res.ticket.id;
-  drawerBody.innerHTML = renderDrawerContent(res.ticket, res.messages);
+  drawerBody.innerHTML = renderDrawerContent(res.ticket, res.messages, res.auditLog, res.assignedEmail);
   attachDrawerHandlers(res.ticket);
   drawer.classList.add("open");
   drawerOverlay.classList.add("open");
+
+  // Refresh the list in the background so the unread dot clears immediately.
+  refreshTickets();
 }
 
 function closeDrawer() {
@@ -114,7 +163,7 @@ function closeDrawer() {
   renderTable();
 }
 
-function renderDrawerContent(t, messages) {
+function renderDrawerContent(t, messages, auditLog, assignedEmail) {
   const sla = slaStatus(t.sla_due, t.status);
   return `
     <div class="detail-section">
@@ -160,6 +209,13 @@ function renderDrawerContent(t, messages) {
             <option value="resolved" ${t.status === "resolved" ? "selected" : ""}>Resolved</option>
           </select>
         </div>
+        <div style="grid-column: 1 / -1;">
+          <div class="detail-field-label">Assigned to</div>
+          <select class="status-select" id="assigned-select" style="width:100%;">
+            <option value="">Unassigned</option>
+            ${agents.map((a) => `<option value="${a.id}" ${t.assigned_to === a.id ? "selected" : ""}>${a.email}</option>`).join("")}
+          </select>
+        </div>
       </div>
     </div>
 
@@ -190,7 +246,35 @@ function renderDrawerContent(t, messages) {
       <div id="reply-error" style="margin-top:8px;"></div>
       <button class="copilot-trigger" id="send-reply-btn" style="margin-top:8px;">Send reply</button>
     </div>
+
+    <div class="detail-section">
+      <div class="detail-label">History</div>
+      <div class="audit-log">
+        ${(auditLog || []).length === 0
+          ? '<div class="empty-state" style="padding:14px;">No changes recorded yet.</div>'
+          : auditLog.map(a => `
+            <div class="audit-entry">
+              <span class="mono" style="color:var(--text-dim);">${formatTime(a.created_at)}</span>
+              <span>${a.actor_email} changed <strong>${fieldLabel(a.field)}</strong> from "${displayValue(a.field, a.old_value)}" to "${displayValue(a.field, a.new_value)}"</span>
+            </div>
+          `).join("")}
+      </div>
+    </div>
   `;
+}
+
+function fieldLabel(field) {
+  if (field === "assigned_to") return "assignment";
+  return field;
+}
+
+function displayValue(field, value) {
+  if (field === "assigned_to") {
+    if (!value) return "Unassigned";
+    const agent = agents.find((a) => a.id === value);
+    return agent ? agent.email : value;
+  }
+  return value || "—";
 }
 
 function attachDrawerHandlers(t) {
@@ -208,6 +292,10 @@ function attachDrawerHandlers(t) {
   };
   document.getElementById("category-select").onchange = async (e) => {
     await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", authed: true, body: { category: e.target.value } });
+    await refreshTickets();
+  };
+  document.getElementById("assigned-select").onchange = async (e) => {
+    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", authed: true, body: { assigned_to: e.target.value || null } });
     await refreshTickets();
   };
 
@@ -353,13 +441,63 @@ document.querySelectorAll("[data-pri-filter]").forEach((el) => {
 drawerOverlay.addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
 
+// ---- Search ----
+document.getElementById("search-input").addEventListener("input", (e) => {
+  searchQuery = e.target.value;
+  renderTable();
+});
+
+// ---- Select all ----
+document.getElementById("select-all-checkbox").addEventListener("change", (e) => {
+  const list = getFilteredTickets();
+  if (e.target.checked) {
+    list.forEach((t) => selectedTicketIds.add(t.id));
+  } else {
+    list.forEach((t) => selectedTicketIds.delete(t.id));
+  }
+  renderTable();
+});
+
+// ---- Bulk actions ----
+document.getElementById("bulk-status-select").addEventListener("change", async (e) => {
+  const value = e.target.value;
+  if (!value) return;
+  await ticketApi("/tickets/bulk-update", {
+    method: "POST", authed: true,
+    body: { ticketIds: [...selectedTicketIds], field: "status", value },
+  });
+  selectedTicketIds.clear();
+  e.target.value = "";
+  await refreshTickets();
+});
+
+document.getElementById("bulk-assign-select").addEventListener("change", async (e) => {
+  const value = e.target.value;
+  if (!value) return;
+  await ticketApi("/tickets/bulk-update", {
+    method: "POST", authed: true,
+    body: { ticketIds: [...selectedTicketIds], field: "assigned_to", value },
+  });
+  selectedTicketIds.clear();
+  e.target.value = "";
+  await refreshTickets();
+});
+
+async function loadAgentsIntoDropdown() {
+  const res = await ticketApi("/auth/agents", { authed: true });
+  if (!res.ok) return;
+  agents = res.agents;
+  const select = document.getElementById("bulk-assign-select");
+  select.innerHTML = `<option value="">Assign to...</option>` +
+    agents.map((a) => `<option value="${a.id}">${a.email}</option>`).join("");
+}
+
 // ---- Auth init ----
 async function init() {
   if (!requireAuthOrRedirect()) return;
 
   const ok = await refreshTickets();
   if (!ok) {
-    // Session token invalid/expired — clear it and send back to login.
     clearSessionToken();
     clearStoredUser();
     window.location.href = "login.html";
@@ -369,8 +507,11 @@ async function init() {
   document.getElementById("loading-state").style.display = "none";
   document.getElementById("queue-panel").style.display = "block";
 
-  const user = getStoredUser();
-  if (user) document.getElementById("user-email").textContent = user.email;
+  currentUser = getStoredUser();
+  if (currentUser) document.getElementById("user-email").textContent = currentUser.email;
+
+  await loadAgentsIntoDropdown();
+  updateCounts();
 }
 
 document.getElementById("logout-btn").onclick = async () => {
