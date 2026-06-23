@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Check ticket status — Helpdesk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background-image: none; }
+    .submit-wrap { max-width: 620px; margin: 0 auto; padding: 56px 24px; }
+    .submit-header { margin-bottom: 32px; }
+    .submit-eyebrow {
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+    }
+    .submit-title { font-size: 26px; font-weight: 700; margin: 0 0 8px; }
+    .submit-sub { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+    .submit-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+    .check-status-link { display: block; text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary); }
+
+    .thread { display: flex; flex-direction: column; gap: 12px; margin: 20px 0; max-height: 360px; overflow-y: auto; }
+    .msg-bubble { padding: 12px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5; max-width: 85%; }
+    .msg-agent { background: var(--panel-raised); border: 1px solid var(--border); align-self: flex-start; }
+    .msg-requester { background: var(--accent-dim); border: 1px solid var(--accent); align-self: flex-end; }
+    .msg-meta { font-size: 10px; color: var(--text-dim); margin-top: 6px; }
+
+    .star-row { display: flex; gap: 6px; margin-bottom: 16px; }
+    .star-btn { font-size: 28px; cursor: pointer; color: var(--text-dim); background: none; border: none; padding: 0; line-height: 1; }
+    .star-btn.filled { color: var(--status-medium); }
+  </style>
+</head>
+<body class="app-itsm">
+  <div class="submit-wrap">
+    <div class="submit-header">
+      <div class="submit-eyebrow">◆ HELPDESK</div>
+      <h1 class="submit-title">Check ticket status</h1>
+      <p class="submit-sub">Enter your ticket ID and name to view updates or reply.</p>
+    </div>
+
+    <div class="submit-panel">
+      <div id="lookup-view">
+        <div class="form-row">
+          <label class="form-label">Ticket ID</label>
+          <input class="form-input mono" id="l-ticket-id" placeholder="TKT-xxxxx" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Your name (must match what you entered)</label>
+          <input class="form-input" id="l-requester" placeholder="Jane Doe" />
+        </div>
+        <div id="lookup-error" style="margin-bottom:16px;"></div>
+        <button class="copilot-trigger" id="l-lookup-btn" style="width:100%; justify-content:center;">View ticket</button>
+      </div>
+
+      <div id="ticket-view" style="display:none;"></div>
+    </div>
+
+    <a class="check-status-link" href="submit.html">← Submit a new request instead</a>
+  </div>
+
+  <script src="../shared/ticket-client.js"></script>
+  <script>
+    let currentTicketId = null;
+    let currentRequester = null;
+    let selectedStars = 0;
+
+    function badgeClass(status) {
+      if (status === "new") return "info";
+      if (status === "investigating") return "medium";
+      if (status === "resolved") return "success";
+      return "info";
+    }
+
+    function statusLabel(status) {
+      return status === "investigating" ? "in progress" : status;
+    }
+
+    document.getElementById("l-lookup-btn").onclick = async () => {
+      const ticketId = document.getElementById("l-ticket-id").value.trim();
+      const requester = document.getElementById("l-requester").value.trim();
+      const errorEl = document.getElementById("lookup-error");
+      errorEl.innerHTML = "";
+
+      if (!ticketId || !requester) {
+        errorEl.innerHTML = '<div class="copilot-error">Enter both your ticket ID and name.</div>';
+        return;
+      }
+
+      const res = await ticketApi(`/tickets/${encodeURIComponent(ticketId)}?requester=${encodeURIComponent(requester)}`);
+
+      if (!res.ok) {
+        errorEl.innerHTML = `<div class="copilot-error">${res.status === 401 ? "Name doesn't match this ticket." : res.status === 404 ? "Ticket not found." : (res.message || "Something went wrong.")}</div>`;
+        return;
+      }
+
+      currentTicketId = ticketId;
+      currentRequester = requester;
+      renderTicketView(res.ticket, res.messages, res.rating);
+    };
+
+    function renderTicketView(ticket, messages, rating) {
+      document.getElementById("lookup-view").style.display = "none";
+      const view = document.getElementById("ticket-view");
+      view.style.display = "block";
+
+      view.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;">
+          <div>
+            <div class="mono" style="font-size:12px; color:var(--text-dim);">${ticket.id}</div>
+            <div style="font-size:16px; font-weight:600;">${ticket.subject}</div>
+          </div>
+          <span class="badge badge-${badgeClass(ticket.status)}">${statusLabel(ticket.status)}</span>
+        </div>
+        <div class="detail-narrative" style="margin-bottom:16px;">${ticket.body}</div>
+
+        <div class="detail-label">Conversation</div>
+        <div class="thread" id="thread">
+          ${messages.map(m => `
+            <div class="msg-bubble msg-${m.sender}">
+              ${m.body}
+              <div class="msg-meta">${m.sender === "agent" ? "Support" : "You"} · ${new Date(m.created_at).toLocaleString()}</div>
+            </div>
+          `).join("") || '<div class="empty-state" style="padding:16px;">No replies yet.</div>'}
+        </div>
+
+        <div class="form-row">
+          <textarea class="form-textarea" id="reply-text" placeholder="Add a reply..." style="min-height:70px;"></textarea>
+        </div>
+        <div id="reply-error" style="margin-bottom:12px;"></div>
+        <button class="copilot-trigger" id="reply-btn">Send reply</button>
+
+        ${ticket.status === "resolved" ? renderFeedbackSection(rating) : ""}
+      `;
+
+      document.getElementById("reply-btn").onclick = sendReply;
+      if (ticket.status === "resolved") attachFeedbackHandlers();
+    }
+
+    function renderFeedbackSection(rating) {
+      if (rating) {
+        return `
+          <div class="detail-label" style="margin-top:24px;">Your feedback</div>
+          <div class="copilot-output">
+            ${"★".repeat(rating.stars)}${"☆".repeat(5 - rating.stars)}
+            ${rating.comment ? "<br>" + rating.comment : ""}
+          </div>
+        `;
+      }
+      return `
+        <div class="detail-label" style="margin-top:24px;">How did we do?</div>
+        <div class="star-row" id="star-row">
+          ${[1,2,3,4,5].map(n => `<button class="star-btn" data-star="${n}">★</button>`).join("")}
+        </div>
+        <div class="form-row">
+          <textarea class="form-textarea" id="feedback-comment" placeholder="Any feedback for the support team? (optional)" style="min-height:60px;"></textarea>
+        </div>
+        <div id="feedback-error" style="margin-bottom:12px;"></div>
+        <button class="copilot-trigger" id="feedback-submit-btn">Submit feedback</button>
+      `;
+    }
+
+    function attachFeedbackHandlers() {
+      const stars = document.querySelectorAll(".star-btn");
+      stars.forEach(btn => {
+        btn.onclick = () => {
+          selectedStars = parseInt(btn.dataset.star, 10);
+          stars.forEach(b => b.classList.toggle("filled", parseInt(b.dataset.star, 10) <= selectedStars));
+        };
+      });
+
+      document.getElementById("feedback-submit-btn").onclick = async () => {
+        const errorEl = document.getElementById("feedback-error");
+        if (!selectedStars) {
+          errorEl.innerHTML = '<div class="copilot-error">Pick a star rating first.</div>';
+          return;
+        }
+        const comment = document.getElementById("feedback-comment").value.trim();
+        const res = await ticketApi(`/tickets/${encodeURIComponent(currentTicketId)}/rating`, {
+          method: "POST",
+          body: { stars: selectedStars, comment },
+        });
+        if (!res.ok) {
+          errorEl.innerHTML = `<div class="copilot-error">${res.message || "Couldn't submit feedback."}</div>`;
+          return;
+        }
+        const lookupRes = await ticketApi(`/tickets/${encodeURIComponent(currentTicketId)}?requester=${encodeURIComponent(currentRequester)}`);
+        if (lookupRes.ok) renderTicketView(lookupRes.ticket, lookupRes.messages, lookupRes.rating);
+      };
+    }
+
+    async function sendReply() {
+      const text = document.getElementById("reply-text").value.trim();
+      const errorEl = document.getElementById("reply-error");
+      errorEl.innerHTML = "";
+      if (!text) {
+        errorEl.innerHTML = '<div class="copilot-error">Type a message first.</div>';
+        return;
+      }
+      const res = await ticketApi(`/tickets/${encodeURIComponent(currentTicketId)}/messages`, {
+        method: "POST",
+        body: { sender: "requester", message: text, requester: currentRequester },
+      });
+      if (!res.ok) {
+        errorEl.innerHTML = `<div class="copilot-error">${res.message || "Couldn't send reply."}</div>`;
+        return;
+      }
+      const lookupRes = await ticketApi(`/tickets/${encodeURIComponent(currentTicketId)}?requester=${encodeURIComponent(currentRequester)}`);
+      if (lookupRes.ok) renderTicketView(lookupRes.ticket, lookupRes.messages, lookupRes.rating);
+    }
+  </script>
+</body>
+</html>

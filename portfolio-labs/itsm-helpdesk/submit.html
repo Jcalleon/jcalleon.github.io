@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Submit a request — Helpdesk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background-image: none; }
+    .submit-wrap { max-width: 560px; margin: 0 auto; padding: 56px 24px; }
+    .submit-header { margin-bottom: 32px; }
+    .submit-eyebrow {
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+    }
+    .submit-title { font-size: 26px; font-weight: 700; margin: 0 0 8px; }
+    .submit-sub { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+    .submit-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+    .check-status-link { display: block; text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary); }
+  </style>
+</head>
+<body class="app-itsm">
+  <div class="submit-wrap">
+    <div class="submit-header">
+      <div class="submit-eyebrow">◆ HELPDESK</div>
+      <h1 class="submit-title">Submit a request</h1>
+      <p class="submit-sub">Tell us what's going on and we'll get back to you. You'll get a ticket ID to check status anytime.</p>
+    </div>
+
+    <div class="submit-panel">
+      <div id="form-view">
+        <div class="form-row">
+          <label class="form-label">Your name</label>
+          <input class="form-input" id="s-requester" placeholder="Jane Doe" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Department (optional)</label>
+          <input class="form-input" id="s-department" placeholder="Finance, Engineering, etc." />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Subject</label>
+          <input class="form-input" id="s-subject" placeholder="Briefly describe the issue" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Details</label>
+          <textarea class="form-textarea" id="s-message" placeholder="What's happening? What have you tried?" style="min-height:120px;"></textarea>
+        </div>
+        <div id="submit-error" style="margin-bottom:16px;"></div>
+        <button class="copilot-trigger" id="s-submit-btn" style="width:100%; justify-content:center;">Submit request</button>
+      </div>
+
+      <div id="success-view" style="display:none; text-align:center;">
+        <div style="font-size:32px; margin-bottom:12px;">✓</div>
+        <div style="font-size:16px; font-weight:600; margin-bottom:8px;">Request submitted</div>
+        <p style="color:var(--text-secondary); font-size:13px; margin-bottom:16px;">Your ticket ID is:</p>
+        <div class="mono" style="font-size:20px; font-weight:700; color:var(--accent-text); margin-bottom:20px;" id="new-ticket-id"></div>
+        <p style="color:var(--text-dim); font-size:12px;">Save this ID — you'll need it to check your ticket status or reply.</p>
+      </div>
+    </div>
+
+    <a class="check-status-link" href="check-status.html">Already have a ticket? Check status →</a>
+  </div>
+
+  <script src="../shared/ticket-client.js"></script>
+  <script>
+    document.getElementById("s-submit-btn").onclick = async () => {
+      const requester = document.getElementById("s-requester").value.trim();
+      const department = document.getElementById("s-department").value.trim();
+      const subject = document.getElementById("s-subject").value.trim();
+      const message = document.getElementById("s-message").value.trim();
+      const errorEl = document.getElementById("submit-error");
+      const btn = document.getElementById("s-submit-btn");
+
+      errorEl.innerHTML = "";
+
+      if (!requester || !subject || !message) {
+        errorEl.innerHTML = `<div class="copilot-error">Please fill in your name, subject, and details.</div>`;
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Submitting...";
+
+      const res = await ticketApi("/tickets", {
+        method: "POST",
+        body: { requester, department, subject, message },
+      });
+
+      btn.disabled = false;
+      btn.textContent = "Submit request";
+
+      if (!res.ok) {
+        errorEl.innerHTML = `<div class="copilot-error">${res.message || "Something went wrong. Please try again."}</div>`;
+        return;
+      }
+
+      document.getElementById("form-view").style.display = "none";
+      document.getElementById("success-view").style.display = "block";
+      document.getElementById("new-ticket-id").textContent = res.ticket.id;
+    };
+  </script>
+</body>
+</html>

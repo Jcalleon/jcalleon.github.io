@@ -1,10 +1,9 @@
-// ITSM Helpdesk — app logic
+// ITSM Helpdesk — agent app logic (real backend via D1)
 
-let tickets = TICKETS.map((t) => ({ ...t }));
+let tickets = [];
 let currentFilter = "all";
 let currentPriFilter = null;
 let selectedTicketId = null;
-let ticketCounter = 2292;
 
 const tbody = document.getElementById("ticket-tbody");
 const drawer = document.getElementById("drawer");
@@ -19,7 +18,7 @@ function formatTime(iso) {
 
 function slaStatus(slaIso, status) {
   if (status === "resolved") return { label: "Met", cls: "sla-ok" };
-  const now = new Date("2026-06-23T08:15:00Z"); // fixed reference "now" for demo consistency
+  const now = new Date();
   const sla = new Date(slaIso);
   const diffHrs = (sla - now) / (1000 * 60 * 60);
   if (diffHrs < 0) return { label: `Breached ${Math.abs(diffHrs).toFixed(1)}h ago`, cls: "sla-breach" };
@@ -41,11 +40,7 @@ function getFilteredTickets() {
   let list = [...tickets];
   if (currentFilter !== "all") list = list.filter((t) => t.status === currentFilter);
   if (currentPriFilter) list = list.filter((t) => t.priority === currentPriFilter);
-  return list.sort((a, b) => {
-    const priDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
-    if (priDiff !== 0) return priDiff;
-    return new Date(a.sla) - new Date(b.sla);
-  });
+  return list;
 }
 
 function renderTable() {
@@ -58,7 +53,7 @@ function renderTable() {
   }
 
   for (const t of list) {
-    const sla = slaStatus(t.sla, t.status);
+    const sla = slaStatus(t.sla_due, t.status);
     const tr = document.createElement("tr");
     tr.className = t.id === selectedTicketId ? "selected" : "";
     tr.innerHTML = `
@@ -87,17 +82,27 @@ function statusBadgeClass(status) {
 }
 
 function statusLabel(status) {
-  if (status === "investigating") return "in progress";
-  return status;
+  return status === "investigating" ? "in progress" : status;
 }
 
-function openDrawer(ticketId) {
+async function refreshTickets() {
+  const res = await ticketApi("/tickets", { asAgent: true });
+  if (!res.ok) return false;
+  tickets = res.tickets;
+  updateCounts();
+  renderTable();
+  return true;
+}
+
+async function openDrawer(ticketId) {
   selectedTicketId = ticketId;
   renderTable();
-  const t = tickets.find((x) => x.id === ticketId);
-  drawerTicketId.textContent = t.id;
-  drawerBody.innerHTML = renderDrawerContent(t);
-  attachDrawerHandlers(t);
+  const res = await ticketApi(`/tickets/${encodeURIComponent(ticketId)}`, { asAgent: true });
+  if (!res.ok) return;
+
+  drawerTicketId.textContent = res.ticket.id;
+  drawerBody.innerHTML = renderDrawerContent(res.ticket, res.messages);
+  attachDrawerHandlers(res.ticket);
   drawer.classList.add("open");
   drawerOverlay.classList.add("open");
 }
@@ -109,8 +114,8 @@ function closeDrawer() {
   renderTable();
 }
 
-function renderDrawerContent(t) {
-  const sla = slaStatus(t.sla, t.status);
+function renderDrawerContent(t, messages) {
+  const sla = slaStatus(t.sla_due, t.status);
   return `
     <div class="detail-section">
       <div class="detail-label">Subject</div>
@@ -126,7 +131,7 @@ function renderDrawerContent(t) {
         </div>
         <div>
           <div class="detail-field-label">Created</div>
-          <div class="detail-field-value mono">${formatTime(t.created)}</div>
+          <div class="detail-field-value mono">${formatTime(t.created_at)}</div>
         </div>
         <div>
           <div class="detail-field-label">Category</div>
@@ -169,26 +174,64 @@ function renderDrawerContent(t) {
       <div class="demo-note">Live call to Claude via a rate-limited proxy. Capped per visitor/day.</div>
       <div id="triage-result" style="margin-top:12px;"></div>
     </div>
+
+    <div class="detail-section">
+      <div class="detail-label">Conversation</div>
+      <div class="thread" id="thread" style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+        ${messages.map(m => `
+          <div class="msg-bubble msg-${m.sender}" style="padding:10px 12px; border-radius:8px; font-size:13px; line-height:1.5; max-width:90%;
+            ${m.sender === "agent" ? "background:var(--accent-dim); border:1px solid var(--accent); align-self:flex-end;" : "background:var(--panel-raised); border:1px solid var(--border); align-self:flex-start;"}">
+            ${m.body}
+            <div style="font-size:10px; color:var(--text-dim); margin-top:4px;">${m.sender === "agent" ? "You" : t.requester} · ${formatTime(m.created_at)}</div>
+          </div>
+        `).join("") || '<div class="empty-state" style="padding:14px;">No messages yet.</div>'}
+      </div>
+      <textarea class="draft-textarea" id="reply-textarea" placeholder="Type a reply to send to ${t.requester}..."></textarea>
+      <div id="reply-error" style="margin-top:8px;"></div>
+      <button class="copilot-trigger" id="send-reply-btn" style="margin-top:8px;">Send reply</button>
+    </div>
   `;
 }
 
 function attachDrawerHandlers(t) {
   document.getElementById("drawer-close").onclick = closeDrawer;
-  document.getElementById("status-select").onchange = (e) => {
+
+  document.getElementById("status-select").onchange = async (e) => {
+    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", asAgent: true, body: { status: e.target.value } });
     t.status = e.target.value;
-    updateCounts();
-    renderTable();
+    await refreshTickets();
   };
-  document.getElementById("priority-select").onchange = (e) => {
+  document.getElementById("priority-select").onchange = async (e) => {
+    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", asAgent: true, body: { priority: e.target.value } });
     t.priority = e.target.value;
-    updateCounts();
-    renderTable();
+    await refreshTickets();
   };
-  document.getElementById("category-select").onchange = (e) => {
-    t.category = e.target.value;
-    renderTable();
+  document.getElementById("category-select").onchange = async (e) => {
+    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", asAgent: true, body: { category: e.target.value } });
+    await refreshTickets();
   };
+
   document.getElementById("triage-btn").onclick = () => runTriage(t);
+
+  document.getElementById("send-reply-btn").onclick = async () => {
+    const textarea = document.getElementById("reply-textarea");
+    const text = textarea.value.trim();
+    const errorEl = document.getElementById("reply-error");
+    errorEl.innerHTML = "";
+    if (!text) {
+      errorEl.innerHTML = '<div class="copilot-error">Type a reply first.</div>';
+      return;
+    }
+    const res = await ticketApi(`/tickets/${encodeURIComponent(t.id)}/messages`, {
+      method: "POST", asAgent: true, body: { sender: "agent", message: text },
+    });
+    if (!res.ok) {
+      errorEl.innerHTML = `<div class="copilot-error">${res.message || "Couldn't send reply."}</div>`;
+      return;
+    }
+    textarea.value = "";
+    openDrawer(t.id);
+  };
 }
 
 async function runTriage(t) {
@@ -209,7 +252,7 @@ PRIORITY: [High/Medium/Low]
 REASONING: 1-2 sentences on why, referencing specifics from the ticket.
 
 DRAFT FIRST RESPONSE:
-[A short, professional first-response message to the requester, 2-4 sentences, written for the helpdesk agent to send as-is or lightly edit. Acknowledge the issue, state next step, and give a realistic timeframe.]
+[A short, professional first-response message to the requester, 2-4 sentences, written for the helpdesk agent to send as-is or lightly edit.]
 
 Keep total response under 160 words.`;
 
@@ -225,28 +268,11 @@ Body: ${t.body}`;
   btn.disabled = false;
 
   if (!res.ok) {
-    resultEl.innerHTML = renderAIFallback(res, t);
+    resultEl.innerHTML = `<div class="copilot-error">${res.message || "Demo limit reached."}</div>`;
     return;
   }
 
   resultEl.innerHTML = `<div class="copilot-output">${escapeHtml(res.text)}</div>`;
-}
-
-function renderAIFallback(res, t) {
-  const sample = `CATEGORY: ${t.category}
-PRIORITY: ${t.priority}
-REASONING: This is a sample response shown because the live demo limit was reached. In production, Claude would tailor category, priority, and the draft reply to ${t.id}'s specific details.
-
-DRAFT FIRST RESPONSE:
-Hi ${t.requester.split(" ")[0]}, thanks for flagging this — we've logged it and started looking into it. We'll follow up with an update shortly.`;
-
-  return `
-    <div class="copilot-error">
-      ${escapeHtml(res.message || "Demo limit reached.")}
-    </div>
-    <div style="margin-top:8px;" class="demo-note">Sample output shown below for reference:</div>
-    <div class="copilot-output" style="margin-top:8px; opacity:0.7;">${escapeHtml(sample)}</div>
-  `;
 }
 
 function escapeHtml(str) {
@@ -255,7 +281,7 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// ---- New ticket modal ----
+// ---- New ticket modal (agent-created) ----
 const modalOverlay = document.createElement("div");
 modalOverlay.className = "modal-overlay";
 modalOverlay.id = "new-ticket-modal";
@@ -263,7 +289,7 @@ modalOverlay.innerHTML = `
   <div class="modal">
     <div class="drawer-title" style="margin-bottom:16px;">New ticket</div>
     <div class="form-row">
-      <label class="form-label">Your name</label>
+      <label class="form-label">Requester name</label>
       <input class="form-input" id="nt-requester" placeholder="J. Smith" />
     </div>
     <div class="form-row">
@@ -272,7 +298,7 @@ modalOverlay.innerHTML = `
     </div>
     <div class="form-row">
       <label class="form-label">Details</label>
-      <textarea class="form-textarea" id="nt-body" placeholder="What's happening? What have you tried?"></textarea>
+      <textarea class="form-textarea" id="nt-body" placeholder="What's happening?"></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn-secondary" id="nt-cancel">Cancel</button>
@@ -282,43 +308,25 @@ modalOverlay.innerHTML = `
 `;
 document.body.appendChild(modalOverlay);
 
-document.getElementById("new-ticket-btn").onclick = () => {
-  modalOverlay.classList.add("open");
-};
+document.getElementById("new-ticket-btn").onclick = () => modalOverlay.classList.add("open");
 document.getElementById("nt-cancel").onclick = () => modalOverlay.classList.remove("open");
-modalOverlay.addEventListener("click", (e) => {
-  if (e.target === modalOverlay) modalOverlay.classList.remove("open");
-});
+modalOverlay.addEventListener("click", (e) => { if (e.target === modalOverlay) modalOverlay.classList.remove("open"); });
 
-document.getElementById("nt-submit").onclick = () => {
+document.getElementById("nt-submit").onclick = async () => {
   const requester = document.getElementById("nt-requester").value.trim() || "Anonymous";
   const subject = document.getElementById("nt-subject").value.trim();
-  const body = document.getElementById("nt-body").value.trim();
+  const message = document.getElementById("nt-body").value.trim();
+  if (!subject || !message) return;
 
-  if (!subject || !body) return;
+  const res = await ticketApi("/tickets", { method: "POST", body: { requester, department: "Unspecified", subject, message } });
 
-  const newTicket = {
-    id: `TKT-${ticketCounter++}`,
-    created: new Date().toISOString(),
-    requester,
-    department: "Unspecified",
-    subject,
-    body,
-    category: "Other",
-    priority: "medium",
-    status: "new",
-    sla: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-  };
-
-  tickets.unshift(newTicket);
   modalOverlay.classList.remove("open");
   document.getElementById("nt-requester").value = "";
   document.getElementById("nt-subject").value = "";
   document.getElementById("nt-body").value = "";
 
-  updateCounts();
-  renderTable();
-  openDrawer(newTicket.id);
+  await refreshTickets();
+  if (res.ok) openDrawer(res.ticket.id);
 };
 
 // ---- Nav filtering ----
@@ -343,10 +351,26 @@ document.querySelectorAll("[data-pri-filter]").forEach((el) => {
 });
 
 drawerOverlay.addEventListener("click", closeDrawer);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeDrawer();
-});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
 
-// ---- Init ----
-updateCounts();
-renderTable();
+// ---- Password gate + init ----
+async function tryUnlock() {
+  const ok = await refreshTickets();
+  if (ok) {
+    document.getElementById("lock-screen").style.display = "none";
+    document.getElementById("queue-panel").style.display = "block";
+  }
+  return ok;
+}
+
+document.getElementById("unlock-btn").onclick = async () => {
+  const pw = document.getElementById("agent-password").value;
+  setStoredAgentPassword(pw);
+  const ok = await tryUnlock();
+  if (!ok) {
+    document.getElementById("lock-error").innerHTML = '<div class="copilot-error">Incorrect password.</div>';
+    clearStoredAgentPassword();
+  }
+};
+
+tryUnlock();

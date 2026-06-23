@@ -18,6 +18,7 @@
         <span class="topbar-app-name">Ticket Queue</span>
       </div>
       <div class="topbar-right">
+        <a href="dashboard.html" class="topbar-link" style="margin-right:4px;">Dashboard</a>
         <button class="copilot-trigger" id="new-ticket-btn" style="padding:6px 14px;">+ New ticket</button>
         <span class="topbar-link">⤺ <a href="https://jcalleon.github.io/#lab">Back to portfolio</a></span>
       </div>
@@ -58,13 +59,23 @@
 
       <div class="nav-section-label">About this lab</div>
       <p style="font-size:12px; color:var(--text-dim); padding:0 var(--space-2); line-height:1.6;">
-        Simulated ticket queue. Open a ticket, then "Triage with AI" to have Claude categorize
-        it, set a priority, and draft a first response — live, via a rate-limited API proxy.
+        Real ticket queue backed by a database. Open a ticket to reply, or click "Triage with AI"
+        for a Claude-generated category, priority, and draft response.
+      </p>
+      <p style="font-size:12px; padding:0 var(--space-2); margin-top:10px;">
+        <a href="submit.html">Public submission form →</a>
       </p>
     </nav>
 
     <main class="main">
-      <div class="panel">
+      <div id="lock-screen" style="max-width:360px; margin:80px auto; text-align:center;">
+        <p style="color:var(--text-secondary); margin-bottom:16px;">Agent password required.</p>
+        <input class="form-input" id="agent-password" type="password" placeholder="Password" style="margin-bottom:12px;" />
+        <button class="copilot-trigger" id="unlock-btn" style="width:100%; justify-content:center;">Unlock</button>
+        <div id="lock-error" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="panel" id="queue-panel" style="display:none;">
         <table class="table" id="ticket-table">
           <thead>
             <tr>
@@ -91,8 +102,8 @@
     <div class="drawer-body" id="drawer-body"></div>
   </aside>
 
-  <script src="data.js"></script>
   <script src="../shared/ai-client.js"></script>
+  <script src="../shared/ticket-client.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
