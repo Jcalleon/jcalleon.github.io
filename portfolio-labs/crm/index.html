@@ -8,6 +8,14 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css" />
   <link rel="stylesheet" href="style.css" />
+  <script src="../shared/auth-client.js"></script>
+  <script>
+    // Fast local check, runs before body parses: bounce obviously-logged-out
+    // visitors immediately so they never see a flash of the app shell.
+    if (!getSessionToken()) {
+      window.location.replace("login.html");
+    }
+  </script>
 </head>
 <body class="app-crm">
 
@@ -20,6 +28,7 @@
       <div class="topbar-right">
         <button class="copilot-trigger" id="new-deal-btn" style="padding:6px 14px;">+ New deal</button>
         <span class="topbar-link" id="pipeline-total"></span>
+        <span class="topbar-user" id="topbar-user"></span>
         <span class="topbar-link">⤺ <a href="https://jcalleon.github.io/#lab">Back to portfolio</a></span>
       </div>
     </header>
@@ -41,5 +50,17 @@
   <script src="data.js"></script>
   <script src="../shared/ai-client.js"></script>
   <script src="app.js"></script>
+  <script>
+    // Stronger check: verifies the token against the server (catches expired/
+    // revoked sessions the local check above can't see), then shows who's
+    // logged in and wires up logout.
+    (async () => {
+      const user = await requireValidSessionOrRedirect();
+      if (!user) return; // already redirecting to login.html
+      const el = document.getElementById("topbar-user");
+      el.innerHTML = `<span class="topbar-user-email">${user.email}</span><button class="topbar-logout-btn" id="logout-btn">Log out</button>`;
+      document.getElementById("logout-btn").onclick = doLogout;
+    })();
+  </script>
 </body>
 </html>
