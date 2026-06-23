@@ -344,6 +344,12 @@ async function updateUser(id, request, env, headers) {
     return json({ error: "Invalid JSON body" }, 400, headers);
   }
 
+  // Prevent an admin from deleting or demoting their own account — avoids
+  // accidentally locking everyone out if you're the only admin.
+  if (id === admin.id && (body.action === "reject" || (body.action === "set_role" && body.role !== "admin"))) {
+    return json({ error: "cannot_modify_self", message: "You can't remove or demote your own account." }, 400, headers);
+  }
+
   if (body.action === "approve") {
     await env.DB.prepare(`UPDATE users SET approved = 1 WHERE id = ?`).bind(id).run();
   } else if (body.action === "reject") {
