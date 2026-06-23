@@ -55,7 +55,7 @@
     // revoked sessions the local check above can't see), then shows who's
     // logged in and wires up logout.
     (async () => {
-      const user = await requireValidSessionOrRedirect();
+      const user = await requireValidSessionOrRedirect("crm_role");
       if (!user) return; // already redirecting to login.html
       const el = document.getElementById("topbar-user");
       el.innerHTML = `<span class="topbar-user-email">${user.email}</span><button class="topbar-logout-btn" id="logout-btn">Log out</button>`;
