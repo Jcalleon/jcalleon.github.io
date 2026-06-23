@@ -19,7 +19,10 @@
       </div>
       <div class="topbar-right">
         <a href="dashboard.html" class="topbar-link" style="margin-right:4px;">Dashboard</a>
+        <a href="admin.html" class="topbar-link" style="margin-right:4px;">Admin</a>
         <button class="copilot-trigger" id="new-ticket-btn" style="padding:6px 14px;">+ New ticket</button>
+        <span class="topbar-link" id="user-email" style="margin-left:8px;"></span>
+        <button class="btn-secondary" id="logout-btn" style="padding:4px 10px; font-size:12px;">Log out</button>
         <span class="topbar-link">⤺ <a href="https://jcalleon.github.io/#lab">Back to portfolio</a></span>
       </div>
     </header>
@@ -68,11 +71,8 @@
     </nav>
 
     <main class="main">
-      <div id="lock-screen" style="max-width:360px; margin:80px auto; text-align:center;">
-        <p style="color:var(--text-secondary); margin-bottom:16px;">Agent password required.</p>
-        <input class="form-input" id="agent-password" type="password" placeholder="Password" style="margin-bottom:12px;" />
-        <button class="copilot-trigger" id="unlock-btn" style="width:100%; justify-content:center;">Unlock</button>
-        <div id="lock-error" style="margin-top:12px;"></div>
+      <div id="loading-state" style="max-width:360px; margin:80px auto; text-align:center; color:var(--text-secondary);">
+        Loading...
       </div>
 
       <div class="panel" id="queue-panel" style="display:none;">

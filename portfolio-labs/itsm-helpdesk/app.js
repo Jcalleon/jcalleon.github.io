@@ -86,7 +86,7 @@ function statusLabel(status) {
 }
 
 async function refreshTickets() {
-  const res = await ticketApi("/tickets", { asAgent: true });
+  const res = await ticketApi("/tickets", { authed: true });
   if (!res.ok) return false;
   tickets = res.tickets;
   updateCounts();
@@ -97,7 +97,7 @@ async function refreshTickets() {
 async function openDrawer(ticketId) {
   selectedTicketId = ticketId;
   renderTable();
-  const res = await ticketApi(`/tickets/${encodeURIComponent(ticketId)}`, { asAgent: true });
+  const res = await ticketApi(`/tickets/${encodeURIComponent(ticketId)}`, { authed: true });
   if (!res.ok) return;
 
   drawerTicketId.textContent = res.ticket.id;
@@ -197,17 +197,17 @@ function attachDrawerHandlers(t) {
   document.getElementById("drawer-close").onclick = closeDrawer;
 
   document.getElementById("status-select").onchange = async (e) => {
-    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", asAgent: true, body: { status: e.target.value } });
+    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", authed: true, body: { status: e.target.value } });
     t.status = e.target.value;
     await refreshTickets();
   };
   document.getElementById("priority-select").onchange = async (e) => {
-    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", asAgent: true, body: { priority: e.target.value } });
+    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", authed: true, body: { priority: e.target.value } });
     t.priority = e.target.value;
     await refreshTickets();
   };
   document.getElementById("category-select").onchange = async (e) => {
-    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", asAgent: true, body: { category: e.target.value } });
+    await ticketApi(`/tickets/${encodeURIComponent(t.id)}`, { method: "PATCH", authed: true, body: { category: e.target.value } });
     await refreshTickets();
   };
 
@@ -223,7 +223,7 @@ function attachDrawerHandlers(t) {
       return;
     }
     const res = await ticketApi(`/tickets/${encodeURIComponent(t.id)}/messages`, {
-      method: "POST", asAgent: true, body: { sender: "agent", message: text },
+      method: "POST", authed: true, body: { sender: "agent", message: text },
     });
     if (!res.ok) {
       errorEl.innerHTML = `<div class="copilot-error">${res.message || "Couldn't send reply."}</div>`;
@@ -353,24 +353,31 @@ document.querySelectorAll("[data-pri-filter]").forEach((el) => {
 drawerOverlay.addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
 
-// ---- Password gate + init ----
-async function tryUnlock() {
+// ---- Auth init ----
+async function init() {
+  if (!requireAuthOrRedirect()) return;
+
   const ok = await refreshTickets();
-  if (ok) {
-    document.getElementById("lock-screen").style.display = "none";
-    document.getElementById("queue-panel").style.display = "block";
+  if (!ok) {
+    // Session token invalid/expired — clear it and send back to login.
+    clearSessionToken();
+    clearStoredUser();
+    window.location.href = "login.html";
+    return;
   }
-  return ok;
+
+  document.getElementById("loading-state").style.display = "none";
+  document.getElementById("queue-panel").style.display = "block";
+
+  const user = getStoredUser();
+  if (user) document.getElementById("user-email").textContent = user.email;
 }
 
-document.getElementById("unlock-btn").onclick = async () => {
-  const pw = document.getElementById("agent-password").value;
-  setStoredAgentPassword(pw);
-  const ok = await tryUnlock();
-  if (!ok) {
-    document.getElementById("lock-error").innerHTML = '<div class="copilot-error">Incorrect password.</div>';
-    clearStoredAgentPassword();
-  }
+document.getElementById("logout-btn").onclick = async () => {
+  await ticketApi("/auth/logout", { method: "POST", authed: true });
+  clearSessionToken();
+  clearStoredUser();
+  window.location.href = "login.html";
 };
 
-tryUnlock();
+init();

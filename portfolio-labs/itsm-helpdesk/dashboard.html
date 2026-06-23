@@ -40,10 +40,7 @@
 
     <main class="main" id="main-content">
       <div class="lock-wrap" id="lock-screen">
-        <p style="color:var(--text-secondary); margin-bottom:16px;">Agent password required.</p>
-        <input class="form-input" id="dash-password" type="password" placeholder="Password" style="margin-bottom:12px;" />
-        <button class="copilot-trigger" id="dash-unlock-btn" style="width:100%; justify-content:center;">Unlock</button>
-        <div id="dash-lock-error" style="margin-top:12px;"></div>
+        <p style="color:var(--text-secondary);">Loading...</p>
       </div>
 
       <div id="dashboard-content" style="display:none;"></div>
@@ -53,7 +50,7 @@
   <script src="../shared/ticket-client.js"></script>
   <script>
     async function tryLoadDashboard() {
-      const res = await ticketApi("/stats", { asAgent: true });
+      const res = await ticketApi("/stats", { authed: true });
       if (!res.ok) return false;
       renderDashboard(res);
       return true;
@@ -136,18 +133,17 @@
       `;
     }
 
-    document.getElementById("dash-unlock-btn").onclick = async () => {
-      const pw = document.getElementById("dash-password").value;
-      setStoredAgentPassword(pw);
+    async function init() {
+      if (!requireAuthOrRedirect()) return;
       const ok = await tryLoadDashboard();
       if (!ok) {
-        document.getElementById("dash-lock-error").innerHTML = '<div class="copilot-error">Incorrect password.</div>';
-        clearStoredAgentPassword();
+        clearSessionToken();
+        clearStoredUser();
+        window.location.href = "login.html";
       }
-    };
+    }
 
-    // Auto-try if password already in session from the main dashboard
-    tryLoadDashboard();
+    init();
   </script>
 </body>
 </html>
