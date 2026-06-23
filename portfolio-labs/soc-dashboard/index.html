@@ -106,7 +106,7 @@
   <script src="app.js"></script>
   <script>
     (async () => {
-      const user = await requireValidSessionOrRedirect();
+      const user = await requireValidSessionOrRedirect("soc_role");
       if (!user) return;
       const el = document.getElementById("topbar-user");
       el.innerHTML = `<span class="topbar-user-email">${user.email}</span><button class="topbar-logout-btn" id="logout-btn">Log out</button>`;

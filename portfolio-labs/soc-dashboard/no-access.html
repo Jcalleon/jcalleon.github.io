@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>No access — SOC Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="app-soc">
+
+  <div class="auth-page">
+    <div class="auth-card panel">
+      <div class="topbar-mark" style="margin-bottom:24px;">◆ SOC-CONSOLE</div>
+      <div class="auth-title">No access to this app</div>
+      <div class="auth-subtitle">
+        Your account doesn't currently have access to the SOC console. You may have access to other apps —
+        check the launcher, or ask an admin to grant access here.
+      </div>
+      <div class="auth-footer" style="margin-top:24px; display:flex; flex-direction:column; gap:8px;">
+        <a href="../launcher.html">← Go to launcher</a>
+        <a href="#" id="logout-link">Log out</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="../shared/auth-client.js"></script>
+  <script>
+    document.getElementById("logout-link").onclick = (e) => {
+      e.preventDefault();
+      doLogout();
+    };
+  </script>
+</body>
+</html>
