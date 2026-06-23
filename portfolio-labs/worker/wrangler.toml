@@ -1,0 +1,15 @@
+name = "portfolio-ai-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Rate-limit storage for the AI proxy (already set up — id should already be filled in)
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "d06360e0bf274d9f95fec2c4eaabae31"
+
+# Real ITSM ticket database.
+# After running `wrangler d1 create itsm-db`, paste its database_id below:
+[[d1_databases]]
+binding = "DB"
+database_name = "itsm-db"
+database_id = "7bd43df4-7022-4053-8fcb-ae9ae4256e65"
