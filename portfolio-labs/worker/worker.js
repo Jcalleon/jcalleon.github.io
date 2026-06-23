@@ -37,6 +37,16 @@ const ALLOWED_ORIGINS = [
 const NOTIFY_TO_EMAIL = "jcalleon@outlook.com";
 const NOTIFY_FROM_EMAIL = "notifications@jcalleon.github.io"; // display-only if using MailChannels-style sending
 
+// The one account with full control across all 3 apps: approving signups,
+// and granting admin status (in any app) to anyone else. This is checked by
+// email, not by a role column, so it can never be edited away by accident
+// through the admin panel itself.
+const SUPERADMIN_EMAIL = "jcalleon@outlook.com";
+
+function isSuperadmin(user) {
+  return !!user && user.email === SUPERADMIN_EMAIL;
+}
+
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 14; // 14 days
 
 function corsHeaders(origin) {
@@ -308,6 +318,7 @@ async function login(request, env, headers) {
       itsm_role: user.role,
       crm_role: user.crm_role,
       soc_role: user.soc_role,
+      is_superadmin: isSuperadmin(user),
     },
   }, 200, headers);
 }
@@ -330,25 +341,27 @@ async function me(request, env, headers) {
       itsm_role: user.role,
       crm_role: user.crm_role,
       soc_role: user.soc_role,
+      is_superadmin: isSuperadmin(user),
     },
   }, 200, headers);
 }
 
-// GET /auth/pending — list unapproved users. Admin-only.
+// GET /auth/pending — list unapproved users. Superadmin-only: only
+// jcalleon@outlook.com can approve signups.
 async function listPending(request, env, headers) {
   const user = await getSessionUser(request, env);
-  if (!user || user.role !== "admin") return json({ error: "unauthorized" }, 401, headers);
+  if (!isSuperadmin(user)) return json({ error: "unauthorized" }, 401, headers);
 
   const { results } = await env.DB.prepare(
-    `SELECT id, email, role, created_at FROM users WHERE approved = 0 ORDER BY created_at ASC`
+    `SELECT id, email, role, crm_role, soc_role, created_at FROM users WHERE approved = 0 ORDER BY created_at ASC`
   ).all();
   return json({ pending: results }, 200, headers);
 }
 
-// GET /auth/users — list all users. Admin-only.
+// GET /auth/users — list all users. Superadmin-only.
 async function listUsers(request, env, headers) {
   const user = await getSessionUser(request, env);
-  if (!user || user.role !== "admin") return json({ error: "unauthorized" }, 401, headers);
+  if (!isSuperadmin(user)) return json({ error: "unauthorized" }, 401, headers);
 
   const { results } = await env.DB.prepare(
     `SELECT id, email, role, crm_role, soc_role, approved, created_at FROM users ORDER BY created_at DESC`
@@ -356,12 +369,14 @@ async function listUsers(request, env, headers) {
   return json({ users: results }, 200, headers);
 }
 
-// PATCH /auth/users/:id — approve/reject (account-wide), or change a
-// per-app role (action: "set_role", app: "itsm"|"crm"|"soc", role: "admin"|"agent").
-// Admin-only.
+// PATCH /auth/users/:id — approve/reject (account-wide, superadmin-only), or
+// change a per-app role (action: "set_role", app: "itsm"|"crm"|"soc",
+// role: "admin"|"agent"|"none"). Setting role to "admin" in any app is
+// superadmin-only; setting "agent"/"none" is also currently restricted to
+// the superadmin, since no other admin tier exists yet in this app's model.
 async function updateUser(id, request, env, headers) {
   const admin = await getSessionUser(request, env);
-  if (!admin || admin.role !== "admin") return json({ error: "unauthorized" }, 401, headers);
+  if (!isSuperadmin(admin)) return json({ error: "unauthorized" }, 401, headers);
 
   let body;
   try {
@@ -371,23 +386,21 @@ async function updateUser(id, request, env, headers) {
   }
 
   const ROLE_COLUMN_BY_APP = { itsm: "role", crm: "crm_role", soc: "soc_role" };
+  const VALID_ROLES = ["admin", "agent", "none"];
 
-  // Prevent an admin from deleting or demoting their own ITSM admin status —
-  // avoids accidentally locking everyone out if you're the only admin.
-  // (Self-demotion in CRM/SOC alone is fine — ITSM admin is what gates this panel.)
-  const demotingSelfFromItsmAdmin =
-    id === admin.id && body.action === "set_role" && (body.app || "itsm") === "itsm" && body.role !== "admin";
-  if (id === admin.id && (body.action === "reject" || demotingSelfFromItsmAdmin)) {
+  // The superadmin account itself can't be rejected or demoted through this
+  // panel — avoids ever locking yourself out by accident.
+  if (id === admin.id && (body.action === "reject" || (body.action === "set_role" && body.role !== "admin"))) {
     return json({ error: "cannot_modify_self", message: "You can't remove or demote your own account." }, 400, headers);
   }
 
   if (body.action === "approve") {
-    // Single approval gate — unlocks ITSM, CRM, and SOC at once.
+    // Single approval gate — unlocks ITSM, CRM, and SOC at agent level at once.
     await env.DB.prepare(`UPDATE users SET approved = 1 WHERE id = ?`).bind(id).run();
   } else if (body.action === "reject") {
     await env.DB.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(id).run();
     await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(id).run();
-  } else if (body.action === "set_role" && ["admin", "agent"].includes(body.role)) {
+  } else if (body.action === "set_role" && VALID_ROLES.includes(body.role)) {
     const app = body.app || "itsm"; // default to itsm for backward compatibility with old callers
     const column = ROLE_COLUMN_BY_APP[app];
     if (!column) return json({ error: "Invalid app" }, 400, headers);
