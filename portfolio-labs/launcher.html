@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Launcher — Portfolio Labs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared/tokens.css" />
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .launcher-page { width: 720px; max-width: 100%; padding: var(--space-5); }
+    .launcher-header { margin-bottom: var(--space-6); text-align: center; }
+    .launcher-title { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+    .launcher-subtitle { font-size: 13px; color: var(--text-dim); margin-top: var(--space-2); }
+    .launcher-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); }
+    .launcher-tile {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      transition: border-color 0.15s ease, transform 0.1s ease;
+    }
+    .launcher-tile:hover { transform: translateY(-2px); }
+    .launcher-tile.tile-soc { border-color: var(--border); }
+    .launcher-tile.tile-soc:hover { border-color: #FF5D5D; }
+    .launcher-tile.tile-itsm:hover { border-color: #4D9FFF; }
+    .launcher-tile.tile-crm:hover { border-color: #3DD68C; }
+    .launcher-tile-mark { font-family: var(--font-mono); font-weight: 600; font-size: 14px; }
+    .tile-soc .launcher-tile-mark { color: #FF8080; }
+    .tile-itsm .launcher-tile-mark { color: #7FB8FF; }
+    .tile-crm .launcher-tile-mark { color: #6BE0AA; }
+    .launcher-tile-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+    .launcher-empty { text-align: center; color: var(--text-dim); font-size: 13px; padding: var(--space-6) 0; }
+    .launcher-admin-link { display: block; text-align: center; margin-top: var(--space-6); font-size: 12px; }
+    .launcher-footer { text-align: center; margin-top: var(--space-5); }
+  </style>
+</head>
+<body>
+
+  <div class="launcher-page">
+    <div class="launcher-header">
+      <div class="launcher-title">◆ Portfolio Labs</div>
+      <div class="launcher-subtitle" id="launcher-subtitle">Loading your apps...</div>
+    </div>
+
+    <div class="launcher-grid" id="launcher-grid"></div>
+    <div id="launcher-admin-area"></div>
+
+    <div class="launcher-footer">
+      <a href="#" id="logout-link" style="font-size:12px; color:var(--text-secondary);">Log out</a>
+    </div>
+  </div>
+
+  <script src="shared/auth-client.js"></script>
+  <script>
+    const APPS = [
+      {
+        key: "itsm_role",
+        name: "ITSM Helpdesk",
+        mark: "◆ HELPDESK",
+        desc: "Ticket queue, SLA tracking, AI triage.",
+        href: "itsm-helpdesk/index.html",
+        tileClass: "tile-itsm",
+      },
+      {
+        key: "crm_role",
+        name: "Pipeline CRM",
+        mark: "◆ PIPELINE",
+        desc: "Deal pipeline, AI deal summaries.",
+        href: "crm/index.html",
+        tileClass: "tile-crm",
+      },
+      {
+        key: "soc_role",
+        name: "SOC Console",
+        mark: "◆ SOC-CONSOLE",
+        desc: "Alert triage with AI-assisted analysis.",
+        href: "soc-dashboard/index.html",
+        tileClass: "tile-soc",
+      },
+    ];
+
+    (async () => {
+      const user = await requireValidSessionOrRedirect(null, { login: "login.html" });
+      if (!user) return;
+
+      document.getElementById("launcher-subtitle").textContent = `Signed in as ${user.email}`;
+
+      const grid = document.getElementById("launcher-grid");
+      const accessible = APPS.filter((app) => user[app.key] && user[app.key] !== "none");
+
+      if (accessible.length === 0) {
+        grid.innerHTML = `<div class="launcher-empty">You don't have access to any apps yet. An admin needs to grant access.</div>`;
+      } else {
+        grid.innerHTML = accessible
+          .map(
+            (app) => `
+          <a class="launcher-tile ${app.tileClass}" href="${app.href}">
+            <span class="launcher-tile-mark">${app.mark}</span>
+            <span class="launcher-tile-desc">${app.desc}</span>
+          </a>`
+          )
+          .join("");
+      }
+
+      if (user.is_superadmin) {
+        document.getElementById("launcher-admin-area").innerHTML = `
+          <a class="launcher-admin-link" href="admin/index.html">⚙ Open admin panel →</a>`;
+      }
+    })();
+
+    document.getElementById("logout-link").onclick = (e) => {
+      e.preventDefault();
+      doLogout("login.html");
+    };
+  </script>
+</body>
+</html>

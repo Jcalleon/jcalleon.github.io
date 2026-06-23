@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Portfolio Labs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <style>
+    body { padding: var(--space-5); max-width: 980px; margin: 0 auto; }
+    .admin-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: var(--space-6);
+    }
+    .admin-title { font-size: 18px; font-weight: 600; }
+    .admin-subtitle { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+    .admin-section { margin-bottom: var(--space-6); }
+    .admin-section-title {
+      font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--text-secondary); margin-bottom: var(--space-3);
+    }
+    .pending-row, .user-row {
+      display: flex; align-items: center; gap: var(--space-3);
+      padding: var(--space-3); border-bottom: 1px solid var(--border-soft);
+    }
+    .pending-row:last-child, .user-row:last-child { border-bottom: none; }
+    .row-email { flex: 1; font-size: 13px; }
+    .row-email-superadmin { color: var(--status-success); font-weight: 600; }
+    .row-meta { font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
+    .role-select {
+      background: var(--panel-raised);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-family: var(--font-sans);
+      width: 110px;
+    }
+    .role-select.role-admin { border-color: var(--status-success); color: var(--status-success); }
+    .role-select.role-none { border-color: var(--text-dim); color: var(--text-dim); }
+    .role-group { display: flex; align-items: center; gap: 4px; }
+    .role-group-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; width: 36px; }
+    .btn-approve {
+      background: rgba(61,214,140,0.14); border: 1px solid var(--status-success);
+      color: var(--status-success); padding: 4px 12px; border-radius: var(--radius-sm); font-size: 12px;
+    }
+    .btn-reject {
+      background: rgba(255,93,93,0.08); border: 1px solid var(--status-critical);
+      color: var(--status-critical); padding: 4px 12px; border-radius: var(--radius-sm); font-size: 12px;
+    }
+    .save-indicator { font-size: 11px; color: var(--status-success); margin-left: 4px; opacity: 0; transition: opacity 0.3s ease; }
+    .save-indicator.show { opacity: 1; }
+    .admin-denied { text-align: center; padding: var(--space-7) 0; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+
+  <div id="admin-root">
+    <div class="admin-denied">Checking access...</div>
+  </div>
+
+  <script src="../shared/auth-client.js"></script>
+  <script>
+    const ROLE_OPTIONS = ["none", "agent", "admin"];
+    let currentUserId = null;
+
+    function roleSelectHtml(userId, app, currentValue, disabled) {
+      const opts = ROLE_OPTIONS.map(
+        (r) => `<option value="${r}" ${r === currentValue ? "selected" : ""}>${r}</option>`
+      ).join("");
+      return `<select class="role-select role-${currentValue}" data-user-id="${userId}" data-app="${app}" ${disabled ? "disabled" : ""}>${opts}</select>`;
+    }
+
+    async function loadAdminPanel() {
+      const user = await requireValidSessionOrRedirect(null, { login: "../login.html" });
+      if (!user) return;
+
+      if (!user.is_superadmin) {
+        document.getElementById("admin-root").innerHTML = `
+          <div class="admin-denied">
+            This panel is restricted to the account that manages access across all apps.<br/>
+            <a href="../launcher.html" style="color:var(--accent);">← Back to launcher</a>
+          </div>`;
+        return;
+      }
+
+      currentUserId = user.id;
+      renderShell();
+      await Promise.all([loadPending(), loadUsers()]);
+    }
+
+    function renderShell() {
+      document.getElementById("admin-root").innerHTML = `
+        <div class="admin-header">
+          <div>
+            <div class="admin-title">◆ Admin — Portfolio Labs</div>
+            <div class="admin-subtitle">Manage approvals and per-app access for SOC, ITSM, and CRM.</div>
+          </div>
+          <div>
+            <a href="../launcher.html" style="font-size:12px; color:var(--text-secondary); margin-right:16px;">← Launcher</a>
+            <a href="#" id="logout-link" style="font-size:12px; color:var(--text-secondary);">Log out</a>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <div class="admin-section-title">Pending signups</div>
+          <div class="panel" id="pending-panel">
+            <div class="pending-row"><span class="row-meta">Loading...</span></div>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <div class="admin-section-title">All users — per-app access</div>
+          <div class="panel" id="users-panel">
+            <div class="user-row"><span class="row-meta">Loading...</span></div>
+          </div>
+        </div>
+      `;
+      document.getElementById("logout-link").onclick = (e) => {
+        e.preventDefault();
+        doLogout("../login.html");
+      };
+    }
+
+    async function loadPending() {
+      const res = await authApi("/auth/pending", { authed: true });
+      const panel = document.getElementById("pending-panel");
+      if (!res.ok) {
+        panel.innerHTML = `<div class="pending-row"><span class="row-meta">Couldn't load pending signups.</span></div>`;
+        return;
+      }
+      if (res.pending.length === 0) {
+        panel.innerHTML = `<div class="pending-row"><span class="row-meta">No pending signups.</span></div>`;
+        return;
+      }
+      panel.innerHTML = res.pending
+        .map(
+          (p) => `
+        <div class="pending-row" data-pending-id="${p.id}">
+          <span class="row-email">${p.email}</span>
+          <span class="row-meta">joined ${new Date(p.created_at).toLocaleDateString()}</span>
+          <button class="btn-approve" data-action="approve" data-id="${p.id}">Approve</button>
+          <button class="btn-reject" data-action="reject" data-id="${p.id}">Reject</button>
+        </div>`
+        )
+        .join("");
+
+      panel.querySelectorAll("button[data-action]").forEach((btn) => {
+        btn.onclick = async () => {
+          const id = btn.dataset.id;
+          const action = btn.dataset.action;
+          btn.disabled = true;
+          const res = await authApi(`/auth/users/${id}`, { method: "PATCH", authed: true, body: { action } });
+          if (!res.ok) {
+            alert(res.message || "Action failed.");
+            btn.disabled = false;
+            return;
+          }
+          await Promise.all([loadPending(), loadUsers()]);
+        };
+      });
+    }
+
+    async function loadUsers() {
+      const res = await authApi("/auth/users", { authed: true });
+      const panel = document.getElementById("users-panel");
+      if (!res.ok) {
+        panel.innerHTML = `<div class="user-row"><span class="row-meta">Couldn't load users.</span></div>`;
+        return;
+      }
+
+      panel.innerHTML = res.users
+        .map((u) => {
+          const isSelf = u.id === currentUserId;
+          return `
+        <div class="user-row" data-user-row="${u.id}">
+          <span class="row-email ${isSelf ? "row-email-superadmin" : ""}">${u.email}${isSelf ? " (you)" : ""}</span>
+          <span class="row-meta">${u.approved ? "approved" : "pending"}</span>
+          <div class="role-group">
+            <span class="role-group-label">ITSM</span>
+            ${roleSelectHtml(u.id, "itsm", u.role, isSelf)}
+          </div>
+          <div class="role-group">
+            <span class="role-group-label">CRM</span>
+            ${roleSelectHtml(u.id, "crm", u.crm_role, isSelf)}
+          </div>
+          <div class="role-group">
+            <span class="role-group-label">SOC</span>
+            ${roleSelectHtml(u.id, "soc", u.soc_role, isSelf)}
+          </div>
+          <span class="save-indicator" data-save-for="${u.id}">Saved</span>
+        </div>`;
+        })
+        .join("");
+
+      panel.querySelectorAll(".role-select").forEach((sel) => {
+        sel.onchange = async () => {
+          const userId = sel.dataset.userId;
+          const app = sel.dataset.app;
+          const role = sel.value;
+          sel.disabled = true;
+          const res = await authApi(`/auth/users/${userId}`, {
+            method: "PATCH",
+            authed: true,
+            body: { action: "set_role", app, role },
+          });
+          sel.disabled = false;
+          if (!res.ok) {
+            alert(res.message || "Couldn't update role.");
+            return;
+          }
+          sel.className = `role-select role-${role}`;
+          const indicator = panel.querySelector(`.save-indicator[data-save-for="${userId}"]`);
+          if (indicator) {
+            indicator.classList.add("show");
+            setTimeout(() => indicator.classList.remove("show"), 1200);
+          }
+        };
+      });
+    }
+
+    loadAdminPanel();
+  </script>
+</body>
+</html>

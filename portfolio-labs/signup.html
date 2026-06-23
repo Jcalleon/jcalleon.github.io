@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign up — Portfolio Labs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared/tokens.css" />
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  </style>
+</head>
+<body>
+
+  <div class="auth-page">
+    <div class="auth-card panel">
+      <div class="topbar-mark" style="margin-bottom:24px; color: var(--text-primary);">◆ Portfolio Labs</div>
+      <div class="auth-title">Create an account</div>
+      <div class="auth-subtitle">One account works across SOC, ITSM, and CRM. An admin approves new accounts once.</div>
+
+      <div class="form-row" style="margin-top:24px;">
+        <label class="form-label">Email</label>
+        <input class="form-input" id="su-email" type="email" placeholder="you@company.com" autocomplete="username" />
+      </div>
+      <div class="form-row">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="su-password" type="password" placeholder="At least 8 characters" autocomplete="new-password" />
+      </div>
+
+      <div id="signup-error"></div>
+      <div id="signup-success"></div>
+
+      <button class="copilot-trigger" id="su-submit-btn" style="width:100%; justify-content:center; margin-top:8px; color: var(--text-primary); border-color: var(--text-dim); background: var(--panel-raised);">Sign up</button>
+
+      <div class="auth-footer">
+        Already have an account? <a href="login.html">Log in →</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared/auth-client.js"></script>
+  <script>
+    if (getSessionToken()) {
+      window.location.href = "launcher.html";
+    }
+    async function doSignup() {
+      const email = document.getElementById("su-email").value.trim();
+      const password = document.getElementById("su-password").value;
+      const errorEl = document.getElementById("signup-error");
+      const successEl = document.getElementById("signup-success");
+      const btn = document.getElementById("su-submit-btn");
+      errorEl.innerHTML = "";
+      successEl.innerHTML = "";
+      if (!email || !password) {
+        errorEl.innerHTML = '<div class="copilot-error">Enter both email and password.</div>';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Creating account...";
+      const res = await authApi("/auth/signup", { method: "POST", body: { email, password } });
+      btn.disabled = false;
+      btn.textContent = "Sign up";
+      if (!res.ok) {
+        errorEl.innerHTML = `<div class="copilot-error">${res.message || "Signup failed."}</div>`;
+        return;
+      }
+      successEl.innerHTML = `<div class="demo-note" style="color:var(--status-success);">${res.message}</div>`;
+      document.getElementById("su-email").value = "";
+      document.getElementById("su-password").value = "";
+      setTimeout(() => { window.location.href = "login.html"; }, 1800);
+    }
+    document.getElementById("su-submit-btn").onclick = doSignup;
+    document.getElementById("su-password").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doSignup();
+    });
+  </script>
+</body>
+</html>
