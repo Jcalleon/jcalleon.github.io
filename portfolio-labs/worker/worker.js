@@ -404,11 +404,21 @@ async function listTickets(request, env, headers) {
   if (!user) return json({ error: "unauthorized" }, 401, headers);
 
   const { results } = await env.DB.prepare(
-    `SELECT * FROM tickets ORDER BY
-       CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
-       sla_due ASC`
+    `SELECT t.*, u.email as assigned_email,
+       (SELECT MAX(created_at) FROM messages m WHERE m.ticket_id = t.id AND m.sender = 'requester') as last_requester_msg_at
+     FROM tickets t
+     LEFT JOIN users u ON u.id = t.assigned_to
+     ORDER BY
+       CASE t.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+       t.sla_due ASC`
   ).all();
-  return json({ tickets: results }, 200, headers);
+
+  const tickets = results.map((t) => ({
+    ...t,
+    has_unread_reply: !!(t.last_requester_msg_at && (!t.agent_last_viewed_at || t.last_requester_msg_at > t.agent_last_viewed_at)),
+  }));
+
+  return json({ tickets }, 200, headers);
 }
 
 async function getTicket(id, request, env, headers) {
@@ -429,7 +439,23 @@ async function getTicket(id, request, env, headers) {
 
   const rating = await env.DB.prepare(`SELECT * FROM ratings WHERE ticket_id = ?`).bind(id).first();
 
-  return json({ ticket, messages, rating: rating || null }, 200, headers);
+  const { results: auditLog } = await env.DB.prepare(
+    `SELECT * FROM audit_log WHERE ticket_id = ? ORDER BY created_at DESC`
+  ).bind(id).all();
+
+  let assignedEmail = null;
+  if (ticket.assigned_to) {
+    const assignee = await env.DB.prepare(`SELECT email FROM users WHERE id = ?`).bind(ticket.assigned_to).first();
+    assignedEmail = assignee ? assignee.email : null;
+  }
+
+  // Agent viewing the ticket marks it as seen (used for the unread-reply indicator).
+  if (user) {
+    await env.DB.prepare(`UPDATE tickets SET agent_last_viewed_at = ? WHERE id = ?`)
+      .bind(new Date().toISOString(), id).run();
+  }
+
+  return json({ ticket, messages, rating: rating || null, auditLog, assignedEmail }, 200, headers);
 }
 
 async function updateTicket(id, request, env, headers) {
@@ -443,18 +469,30 @@ async function updateTicket(id, request, env, headers) {
     return json({ error: "Invalid JSON body" }, 400, headers);
   }
 
+  const current = await env.DB.prepare(`SELECT * FROM tickets WHERE id = ?`).bind(id).first();
+  if (!current) return json({ error: "not_found" }, 404, headers);
+
   const fields = [];
   const values = [];
-  for (const key of ["status", "priority", "category"]) {
-    if (body[key] !== undefined) {
+  const auditEntries = [];
+
+  for (const key of ["status", "priority", "category", "assigned_to"]) {
+    if (body[key] !== undefined && body[key] !== current[key]) {
       fields.push(`${key} = ?`);
       values.push(body[key]);
+      auditEntries.push({ field: key, old: current[key], new: body[key] });
     }
   }
   if (fields.length === 0) return json({ error: "No updatable fields supplied" }, 400, headers);
 
   values.push(id);
   await env.DB.prepare(`UPDATE tickets SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+
+  for (const entry of auditEntries) {
+    await env.DB.prepare(
+      `INSERT INTO audit_log (id, ticket_id, actor_email, field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(genId("AUD"), id, user.email, entry.field, entry.old, entry.new, new Date().toISOString()).run();
+  }
 
   const ticket = await env.DB.prepare(`SELECT * FROM tickets WHERE id = ?`).bind(id).first();
   return json({ ticket }, 200, headers);
@@ -532,6 +570,55 @@ async function submitRating(id, request, env, headers) {
   return json({ rating: { ticket_id: id, stars: starsNum, comment: comment || "", created_at: now } }, 201, headers);
 }
 
+// POST /tickets/bulk-update — apply the same status/priority/assigned_to change
+// to multiple tickets at once. Agent-only.
+async function bulkUpdateTickets(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const { ticketIds, field, value } = body;
+  if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
+    return json({ error: "ticketIds must be a non-empty array" }, 400, headers);
+  }
+  if (!["status", "priority", "assigned_to"].includes(field)) {
+    return json({ error: "Invalid field for bulk update" }, 400, headers);
+  }
+
+  let updated = 0;
+  for (const ticketId of ticketIds) {
+    const current = await env.DB.prepare(`SELECT * FROM tickets WHERE id = ?`).bind(ticketId).first();
+    if (!current || current[field] === value) continue;
+
+    await env.DB.prepare(`UPDATE tickets SET ${field} = ? WHERE id = ?`).bind(value, ticketId).run();
+    await env.DB.prepare(
+      `INSERT INTO audit_log (id, ticket_id, actor_email, field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(genId("AUD"), ticketId, user.email, field, current[field], value, new Date().toISOString()).run();
+    updated++;
+  }
+
+  return json({ message: `Updated ${updated} ticket(s).`, updated }, 200, headers);
+}
+
+// GET /auth/agents — list approved agents (for assignment dropdown). Any logged-in user.
+async function listAgents(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+
+  const { results } = await env.DB.prepare(
+    `SELECT id, email FROM users WHERE approved = 1 ORDER BY email ASC`
+  ).all();
+  return json({ agents: results }, 200, headers);
+}
+
+
+// GET /stats — aggregate dashboard data. Agent-only.
 async function getStats(request, env, headers) {
   const user = await getSessionUser(request, env);
   if (!user) return json({ error: "unauthorized" }, 401, headers);
@@ -593,6 +680,8 @@ export default {
     // ---- Ticket routes ----
     if (path === "/tickets" && request.method === "POST") return createTicket(request, env, headers);
     if (path === "/tickets" && request.method === "GET") return listTickets(request, env, headers);
+    if (path === "/tickets/bulk-update" && request.method === "POST") return bulkUpdateTickets(request, env, headers);
+    if (path === "/auth/agents" && request.method === "GET") return listAgents(request, env, headers);
     if (path === "/stats" && request.method === "GET") return getStats(request, env, headers);
 
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
