@@ -66,12 +66,14 @@ async function authApi(path, { method = "GET", body, authed = false } = {}) {
 /**
  * Redirects to login.html if no session is present. Call at the top of
  * any agent-only page, before rendering real content.
+ * @param {string} [loginPath] - defaults to "login.html"; override for pages
+ *   at a different folder depth (launcher, admin panel).
  * @returns {boolean} true if a session token exists (does NOT guarantee it's
  *   still valid server-side — pair with requireValidSessionOrRedirect for that).
  */
-function requireAuthOrRedirect() {
+function requireAuthOrRedirect(loginPath) {
   if (!getSessionToken()) {
-    window.location.href = "login.html";
+    window.location.href = loginPath || "login.html";
     return false;
   }
   return true;
@@ -79,32 +81,52 @@ function requireAuthOrRedirect() {
 
 /**
  * Stronger check: actually verifies the session against the server (catches
- * expired/revoked tokens, not just "a token exists locally"). Call this once
- * on page load for pages where stale access is unacceptable.
- * @param {string} appRole - "itsm_role" | "crm_role" | "soc_role"
+ * expired/revoked tokens, not just "a token exists locally"), and — if
+ * appRole is given — enforces that this app's role isn't "none" before
+ * letting the page proceed.
+ * @param {string} [appRole] - "itsm_role" | "crm_role" | "soc_role". If
+ *   omitted, only session validity is checked (used by the launcher/admin
+ *   panel, which aren't gated by any single app's role).
+ * @param {Object} [paths] - { login, noAccess } overrides for pages at a
+ *   different folder depth than a single app (launcher, admin panel).
  * @returns {Promise<Object|null>} the user object if valid, otherwise null
- *   (and redirects to login.html as a side effect).
+ *   (and redirects as a side effect — to login.html if not logged in, or to
+ *   no-access.html if logged in but this app's role is "none").
  */
-async function requireValidSessionOrRedirect(appRole) {
+async function requireValidSessionOrRedirect(appRole, paths) {
+  const loginPath = (paths && paths.login) || "login.html";
+  const noAccessPath = (paths && paths.noAccess) || "no-access.html";
+
   if (!getSessionToken()) {
-    window.location.href = "login.html";
+    window.location.href = loginPath;
     return null;
   }
   const res = await authApi("/auth/me", { authed: true });
   if (!res.ok) {
     clearSessionToken();
     clearStoredUser();
-    window.location.href = "login.html";
+    window.location.href = loginPath;
     return null;
   }
-  setStoredUser(res.user); // refresh local copy in case an admin changed roles since last login
+  setStoredUser(res.user); // refresh local copy in case the superadmin changed roles since last login
+
+  if (appRole && res.user[appRole] === "none") {
+    window.location.href = noAccessPath;
+    return null;
+  }
+
   return res.user;
 }
 
-/** Logs out and redirects to this app's login page. */
-async function doLogout() {
+/**
+ * Logs out and redirects.
+ * @param {string} [redirectTo] - defaults to "login.html" (correct for pages
+ *   inside an app folder like crm/ or soc-dashboard/). Pages at a different
+ *   depth (the launcher, the admin panel) should pass their own relative path.
+ */
+async function doLogout(redirectTo) {
   await authApi("/auth/logout", { method: "POST", authed: true });
   clearSessionToken();
   clearStoredUser();
-  window.location.href = "login.html";
+  window.location.href = redirectTo || "login.html";
 }
