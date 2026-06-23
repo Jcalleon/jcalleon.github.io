@@ -1,17 +1,24 @@
 /**
- * Shared Cloudflare Worker — Claude API proxy + ITSM ticket API
+ * Shared Cloudflare Worker — Claude API proxy + ITSM ticket API + Auth
  * Used by: SOC Dashboard, ITSM Helpdesk, CRM (portfolio labs for jcalleon.github.io)
  *
- * Two responsibilities, routed by path:
- *   POST /              -> AI proxy (unchanged behavior, used by all 3 apps)
- *   /tickets/*          -> Real ITSM ticket API, backed by D1 (see schema.sql)
+ * Responsibilities, routed by path:
+ *   POST /                    -> AI proxy (unchanged, used by all 3 apps)
+ *   /auth/*                   -> signup, login, logout, session check, admin approval
+ *   /tickets/*                -> Real ITSM ticket API, backed by D1
+ *   /stats                    -> Dashboard aggregate stats
  *
- * Required setup (see DEPLOY.md):
+ * Required setup (see DEPLOY.md / DEPLOY_AUTH.md):
  *   wrangler secret put ANTHROPIC_API_KEY
- *   wrangler secret put AGENT_PASSWORD
- *   wrangler d1 create itsm-db   (then bind as DB in wrangler.toml)
+ *   wrangler d1 create itsm-db   (bind as DB)
  *   wrangler kv namespace create RATE_LIMIT_KV  (bind as RATE_LIMIT_KV)
+ *   wrangler d1 execute itsm-db --remote --file=schema.sql
+ *   wrangler d1 execute itsm-db --remote --file=schema_auth.sql
+ *   Email Routing configured + your address verified as destination (see DEPLOY_AUTH.md)
+ *   send_email binding named NOTIFY_EMAIL in wrangler.toml
  */
+import { EmailMessage } from "cloudflare:email";
+import { createMimeMessage } from "mimetext";
 
 // ---- Hard caps for the AI proxy. Tune these, but never remove them. ----
 const GLOBAL_DAILY_CAP = 300;
@@ -25,12 +32,19 @@ const ALLOWED_ORIGINS = [
   "http://127.0.0.1:8000",
 ];
 
+// Where ticket notification emails get sent. Must be a verified destination
+// address in your Cloudflare Email Routing setup (see DEPLOY_AUTH.md).
+const NOTIFY_TO_EMAIL = "jcalleon@outlook.com";
+const NOTIFY_FROM_EMAIL = "notifications@jcalleon.github.io"; // display-only if using MailChannels-style sending
+
+const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 14; // 14 days
+
 function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Agent-Password",
+    "Access-Control-Allow-Headers": "Content-Type, X-Session-Token",
     "Vary": "Origin",
   };
 }
@@ -61,13 +75,78 @@ function genId(prefix) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function isAgentAuthed(request, env) {
-  const supplied = request.headers.get("X-Agent-Password") || "";
-  return env.AGENT_PASSWORD && supplied === env.AGENT_PASSWORD;
+// ============================================================
+// PASSWORD HASHING (Web Crypto PBKDF2 — built into Workers runtime)
+// ============================================================
+function bufToHex(buf) {
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function hexToBuf(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  return bytes;
+}
+
+async function hashPassword(password, saltHex) {
+  const enc = new TextEncoder();
+  const salt = saltHex ? hexToBuf(saltHex) : crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const derived = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
+    keyMaterial,
+    256
+  );
+  return { hash: bufToHex(derived), salt: bufToHex(salt) };
+}
+
+async function verifyPassword(password, storedHash, storedSalt) {
+  const { hash } = await hashPassword(password, storedSalt);
+  return hash === storedHash;
+}
+
+function genToken() {
+  return bufToHex(crypto.getRandomValues(new Uint8Array(32)));
 }
 
 // ============================================================
-// AI PROXY (original behavior — used by SOC, ITSM AI triage, CRM)
+// SESSION HELPERS
+// ============================================================
+async function getSessionUser(request, env) {
+  const token = request.headers.get("X-Session-Token") || "";
+  if (!token) return null;
+
+  const session = await env.DB.prepare(
+    `SELECT * FROM sessions WHERE token = ? AND expires_at > datetime('now')`
+  ).bind(token).first();
+  if (!session) return null;
+
+  const user = await env.DB.prepare(`SELECT * FROM users WHERE id = ?`).bind(session.user_id).first();
+  if (!user || !user.approved) return null;
+
+  return user;
+}
+
+// ============================================================
+// EMAIL NOTIFICATIONS (Cloudflare Email Routing — free to verified address)
+// ============================================================
+async function sendNotificationEmail(env, subject, bodyText) {
+  if (!env.NOTIFY_EMAIL) return; // binding not configured, skip silently
+  try {
+    const msg = createMimeMessage();
+    msg.setSender({ name: "Helpdesk Notifications", addr: NOTIFY_FROM_EMAIL });
+    msg.setRecipient(NOTIFY_TO_EMAIL);
+    msg.setSubject(subject);
+    msg.addMessage({ contentType: "text/plain", data: bodyText });
+
+    const message = new EmailMessage(NOTIFY_FROM_EMAIL, NOTIFY_TO_EMAIL, msg.asRaw());
+    await env.NOTIFY_EMAIL.send(message);
+  } catch (err) {
+    console.error("Email notification failed:", err);
+  }
+}
+
+// ============================================================
+// AI PROXY (unchanged behavior — used by SOC, ITSM AI triage, CRM)
 // ============================================================
 async function handleAIProxy(request, env, headers) {
   let body;
@@ -93,16 +172,10 @@ async function handleAIProxy(request, env, headers) {
   ]);
 
   if (globalCount >= GLOBAL_DAILY_CAP) {
-    return json(
-      { error: "demo_limit_reached", message: "This demo has hit its daily AI request cap. Please try again tomorrow." },
-      429, headers
-    );
+    return json({ error: "demo_limit_reached", message: "This demo has hit its daily AI request cap. Please try again tomorrow." }, 429, headers);
   }
   if (visitorCount >= PER_VISITOR_DAILY_CAP) {
-    return json(
-      { error: "visitor_limit_reached", message: "You've hit the per-visitor demo limit for today. Thanks for trying it out!" },
-      429, headers
-    );
+    return json({ error: "visitor_limit_reached", message: "You've hit the per-visitor demo limit for today. Thanks for trying it out!" }, 429, headers);
   }
 
   try {
@@ -144,10 +217,151 @@ async function handleAIProxy(request, env, headers) {
 }
 
 // ============================================================
-// TICKET API (real persistence via D1)
+// AUTH ENDPOINTS
 // ============================================================
 
-// POST /tickets — create a ticket. Public. No auth required.
+// POST /auth/signup — create a new account, starts unapproved.
+async function signup(request, env, headers) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const email = (body.email || "").trim().toLowerCase();
+  const password = body.password || "";
+
+  if (!email || !email.includes("@")) return json({ error: "Valid email required" }, 400, headers);
+  if (password.length < 8) return json({ error: "Password must be at least 8 characters" }, 400, headers);
+
+  const existing = await env.DB.prepare(`SELECT id FROM users WHERE email = ?`).bind(email).first();
+  if (existing) return json({ error: "email_taken", message: "An account with this email already exists." }, 409, headers);
+
+  const { hash, salt } = await hashPassword(password);
+  const id = genId("USR");
+  const now = new Date().toISOString();
+
+  // First-ever user becomes admin + auto-approved (bootstrap). Everyone after needs approval.
+  const userCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM users`).first();
+  const isFirstUser = userCount.count === 0;
+
+  await env.DB.prepare(
+    `INSERT INTO users (id, email, password_hash, salt, role, approved, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, email, hash, salt, isFirstUser ? "admin" : "agent", isFirstUser ? 1 : 0, now).run();
+
+  if (!isFirstUser) {
+    await sendNotificationEmail(
+      env,
+      "New helpdesk agent signup pending approval",
+      `${email} just signed up for agent access and is waiting for approval.\n\nApprove them from the admin panel: https://jcalleon.github.io/portfolio-labs/itsm-helpdesk/admin.html`
+    );
+  }
+
+  return json({
+    message: isFirstUser ? "Account created as admin." : "Account created. An admin needs to approve your access before you can log in.",
+    approved: isFirstUser,
+  }, 201, headers);
+}
+
+// POST /auth/login — verify credentials, create a session.
+async function login(request, env, headers) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const email = (body.email || "").trim().toLowerCase();
+  const password = body.password || "";
+
+  const user = await env.DB.prepare(`SELECT * FROM users WHERE email = ?`).bind(email).first();
+  if (!user) return json({ error: "invalid_credentials", message: "Email or password is incorrect." }, 401, headers);
+
+  const valid = await verifyPassword(password, user.password_hash, user.salt);
+  if (!valid) return json({ error: "invalid_credentials", message: "Email or password is incorrect." }, 401, headers);
+
+  if (!user.approved) {
+    return json({ error: "not_approved", message: "Your account is pending admin approval." }, 403, headers);
+  }
+
+  const token = genToken();
+  const now = new Date();
+  const expires = new Date(now.getTime() + SESSION_DURATION_MS);
+  await env.DB.prepare(
+    `INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`
+  ).bind(token, user.id, now.toISOString(), expires.toISOString()).run();
+
+  return json({ token, user: { id: user.id, email: user.email, role: user.role } }, 200, headers);
+}
+
+// POST /auth/logout
+async function logout(request, env, headers) {
+  const token = request.headers.get("X-Session-Token") || "";
+  if (token) await env.DB.prepare(`DELETE FROM sessions WHERE token = ?`).bind(token).run();
+  return json({ message: "Logged out" }, 200, headers);
+}
+
+// GET /auth/me — check current session
+async function me(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  return json({ user: { id: user.id, email: user.email, role: user.role } }, 200, headers);
+}
+
+// GET /auth/pending — list unapproved users. Admin-only.
+async function listPending(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user || user.role !== "admin") return json({ error: "unauthorized" }, 401, headers);
+
+  const { results } = await env.DB.prepare(
+    `SELECT id, email, role, created_at FROM users WHERE approved = 0 ORDER BY created_at ASC`
+  ).all();
+  return json({ pending: results }, 200, headers);
+}
+
+// GET /auth/users — list all users. Admin-only.
+async function listUsers(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user || user.role !== "admin") return json({ error: "unauthorized" }, 401, headers);
+
+  const { results } = await env.DB.prepare(
+    `SELECT id, email, role, approved, created_at FROM users ORDER BY created_at DESC`
+  ).all();
+  return json({ users: results }, 200, headers);
+}
+
+// PATCH /auth/users/:id — approve/reject/change role. Admin-only.
+async function updateUser(id, request, env, headers) {
+  const admin = await getSessionUser(request, env);
+  if (!admin || admin.role !== "admin") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  if (body.action === "approve") {
+    await env.DB.prepare(`UPDATE users SET approved = 1 WHERE id = ?`).bind(id).run();
+  } else if (body.action === "reject") {
+    await env.DB.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(id).run();
+    await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(id).run();
+  } else if (body.action === "set_role" && ["admin", "agent"].includes(body.role)) {
+    await env.DB.prepare(`UPDATE users SET role = ? WHERE id = ?`).bind(body.role, id).run();
+  } else {
+    return json({ error: "Invalid action" }, 400, headers);
+  }
+
+  return json({ message: "Updated" }, 200, headers);
+}
+
+// ============================================================
+// TICKET API (now session-based instead of shared password)
+// ============================================================
+
 async function createTicket(request, env, headers) {
   let body;
   try {
@@ -170,14 +384,19 @@ async function createTicket(request, env, headers) {
      VALUES (?, ?, ?, ?, ?, 'Other', 'medium', 'new', ?, ?)`
   ).bind(id, requester, department || "Unspecified", subject, message, now, slaDue).run();
 
+  await sendNotificationEmail(
+    env,
+    `New ticket: ${subject}`,
+    `${requester} (${department || "Unspecified"}) submitted a new ticket.\n\nSubject: ${subject}\n\n${message}\n\nTicket ID: ${id}\nView it in your queue: https://jcalleon.github.io/portfolio-labs/itsm-helpdesk/index.html`
+  );
+
   return json({ ticket: { id, requester, department: department || "Unspecified", subject, body: message, category: "Other", priority: "medium", status: "new", created_at: now, sla_due: slaDue } }, 201, headers);
 }
 
-// GET /tickets — list all tickets. Agent-only.
 async function listTickets(request, env, headers) {
-  if (!isAgentAuthed(request, env)) {
-    return json({ error: "unauthorized" }, 401, headers);
-  }
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+
   const { results } = await env.DB.prepare(
     `SELECT * FROM tickets ORDER BY
        CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
@@ -186,17 +405,15 @@ async function listTickets(request, env, headers) {
   return json({ tickets: results }, 200, headers);
 }
 
-// GET /tickets/:id — get one ticket + its messages + rating.
-// Agent (authed) can fetch any. Requester can fetch their own if they supply ?requester=name matching.
 async function getTicket(id, request, env, headers) {
   const ticket = await env.DB.prepare(`SELECT * FROM tickets WHERE id = ?`).bind(id).first();
   if (!ticket) return json({ error: "not_found" }, 404, headers);
 
-  const authed = isAgentAuthed(request, env);
+  const user = await getSessionUser(request, env);
   const url = new URL(request.url);
   const claimedRequester = url.searchParams.get("requester") || "";
 
-  if (!authed && claimedRequester.trim().toLowerCase() !== ticket.requester.trim().toLowerCase()) {
+  if (!user && claimedRequester.trim().toLowerCase() !== ticket.requester.trim().toLowerCase()) {
     return json({ error: "unauthorized" }, 401, headers);
   }
 
@@ -209,11 +426,10 @@ async function getTicket(id, request, env, headers) {
   return json({ ticket, messages, rating: rating || null }, 200, headers);
 }
 
-// PATCH /tickets/:id — update status/priority/category. Agent-only.
 async function updateTicket(id, request, env, headers) {
-  if (!isAgentAuthed(request, env)) {
-    return json({ error: "unauthorized" }, 401, headers);
-  }
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+
   let body;
   try {
     body = await request.json();
@@ -238,7 +454,6 @@ async function updateTicket(id, request, env, headers) {
   return json({ ticket }, 200, headers);
 }
 
-// POST /tickets/:id/messages — add a reply. Agent (authed) or requester (matching name).
 async function addMessage(id, request, env, headers) {
   let body;
   try {
@@ -255,11 +470,11 @@ async function addMessage(id, request, env, headers) {
   const ticket = await env.DB.prepare(`SELECT * FROM tickets WHERE id = ?`).bind(id).first();
   if (!ticket) return json({ error: "not_found" }, 404, headers);
 
-  const authed = isAgentAuthed(request, env);
-  if (sender === "agent" && !authed) {
+  const user = await getSessionUser(request, env);
+  if (sender === "agent" && !user) {
     return json({ error: "unauthorized" }, 401, headers);
   }
-  if (sender === "requester" && !authed) {
+  if (sender === "requester" && !user) {
     const claimed = (requester || "").trim().toLowerCase();
     if (claimed !== ticket.requester.trim().toLowerCase()) {
       return json({ error: "unauthorized" }, 401, headers);
@@ -272,10 +487,17 @@ async function addMessage(id, request, env, headers) {
     `INSERT INTO messages (id, ticket_id, sender, body, created_at) VALUES (?, ?, ?, ?, ?)`
   ).bind(msgId, id, sender, message, now).run();
 
+  if (sender === "requester") {
+    await sendNotificationEmail(
+      env,
+      `New reply on ${id}: ${ticket.subject}`,
+      `${ticket.requester} replied:\n\n${message}\n\nView it in your queue: https://jcalleon.github.io/portfolio-labs/itsm-helpdesk/index.html`
+    );
+  }
+
   return json({ message: { id: msgId, ticket_id: id, sender, body: message, created_at: now } }, 201, headers);
 }
 
-// POST /tickets/:id/rating — submit a star rating + comment. Public, but only on resolved tickets.
 async function submitRating(id, request, env, headers) {
   let body;
   try {
@@ -304,27 +526,15 @@ async function submitRating(id, request, env, headers) {
   return json({ rating: { ticket_id: id, stars: starsNum, comment: comment || "", created_at: now } }, 201, headers);
 }
 
-// GET /stats — aggregate dashboard data. Agent-only.
 async function getStats(request, env, headers) {
-  if (!isAgentAuthed(request, env)) {
-    return json({ error: "unauthorized" }, 401, headers);
-  }
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
 
-  const byStatus = await env.DB.prepare(
-    `SELECT status, COUNT(*) as count FROM tickets GROUP BY status`
-  ).all();
-  const byPriority = await env.DB.prepare(
-    `SELECT priority, COUNT(*) as count FROM tickets GROUP BY priority`
-  ).all();
-  const byCategory = await env.DB.prepare(
-    `SELECT category, COUNT(*) as count FROM tickets GROUP BY category`
-  ).all();
-  const slaBreaches = await env.DB.prepare(
-    `SELECT COUNT(*) as count FROM tickets WHERE status != 'resolved' AND sla_due < datetime('now')`
-  ).first();
-  const ratings = await env.DB.prepare(
-    `SELECT AVG(stars) as avg_stars, COUNT(*) as count FROM ratings`
-  ).first();
+  const byStatus = await env.DB.prepare(`SELECT status, COUNT(*) as count FROM tickets GROUP BY status`).all();
+  const byPriority = await env.DB.prepare(`SELECT priority, COUNT(*) as count FROM tickets GROUP BY priority`).all();
+  const byCategory = await env.DB.prepare(`SELECT category, COUNT(*) as count FROM tickets GROUP BY category`).all();
+  const slaBreaches = await env.DB.prepare(`SELECT COUNT(*) as count FROM tickets WHERE status != 'resolved' AND sla_due < datetime('now')`).first();
+  const ratings = await env.DB.prepare(`SELECT AVG(stars) as avg_stars, COUNT(*) as count FROM ratings`).first();
   const recentRatings = await env.DB.prepare(
     `SELECT r.*, t.subject FROM ratings r JOIN tickets t ON t.id = r.ticket_id ORDER BY r.created_at DESC LIMIT 10`
   ).all();
@@ -358,40 +568,36 @@ export default {
       return json({ error: "Origin not allowed" }, 403, headers);
     }
 
-    // Root path: original AI proxy behavior, unchanged
     if (path === "/" || path === "") {
       if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, headers);
       return handleAIProxy(request, env, headers);
     }
 
-    // Ticket API
-    if (path === "/tickets" && request.method === "POST") {
-      return createTicket(request, env, headers);
-    }
-    if (path === "/tickets" && request.method === "GET") {
-      return listTickets(request, env, headers);
-    }
-    if (path === "/stats" && request.method === "GET") {
-      return getStats(request, env, headers);
-    }
+    // ---- Auth routes ----
+    if (path === "/auth/signup" && request.method === "POST") return signup(request, env, headers);
+    if (path === "/auth/login" && request.method === "POST") return login(request, env, headers);
+    if (path === "/auth/logout" && request.method === "POST") return logout(request, env, headers);
+    if (path === "/auth/me" && request.method === "GET") return me(request, env, headers);
+    if (path === "/auth/pending" && request.method === "GET") return listPending(request, env, headers);
+    if (path === "/auth/users" && request.method === "GET") return listUsers(request, env, headers);
+
+    const userMatch = path.match(/^\/auth\/users\/([^\/]+)$/);
+    if (userMatch && request.method === "PATCH") return updateUser(userMatch[1], request, env, headers);
+
+    // ---- Ticket routes ----
+    if (path === "/tickets" && request.method === "POST") return createTicket(request, env, headers);
+    if (path === "/tickets" && request.method === "GET") return listTickets(request, env, headers);
+    if (path === "/stats" && request.method === "GET") return getStats(request, env, headers);
 
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
-    if (ticketMatch && request.method === "GET") {
-      return getTicket(ticketMatch[1], request, env, headers);
-    }
-    if (ticketMatch && request.method === "PATCH") {
-      return updateTicket(ticketMatch[1], request, env, headers);
-    }
+    if (ticketMatch && request.method === "GET") return getTicket(ticketMatch[1], request, env, headers);
+    if (ticketMatch && request.method === "PATCH") return updateTicket(ticketMatch[1], request, env, headers);
 
     const messagesMatch = path.match(/^\/tickets\/([^\/]+)\/messages$/);
-    if (messagesMatch && request.method === "POST") {
-      return addMessage(messagesMatch[1], request, env, headers);
-    }
+    if (messagesMatch && request.method === "POST") return addMessage(messagesMatch[1], request, env, headers);
 
     const ratingMatch = path.match(/^\/tickets\/([^\/]+)\/rating$/);
-    if (ratingMatch && request.method === "POST") {
-      return submitRating(ratingMatch[1], request, env, headers);
-    }
+    if (ratingMatch && request.method === "POST") return submitRating(ratingMatch[1], request, env, headers);
 
     return json({ error: "not_found" }, 404, headers);
   },
