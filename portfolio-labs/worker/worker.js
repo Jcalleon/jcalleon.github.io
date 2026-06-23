@@ -247,19 +247,26 @@ async function signup(request, env, headers) {
   const isFirstUser = userCount.count === 0;
 
   await env.DB.prepare(
-    `INSERT INTO users (id, email, password_hash, salt, role, approved, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).bind(id, email, hash, salt, isFirstUser ? "admin" : "agent", isFirstUser ? 1 : 0, now).run();
+    `INSERT INTO users (id, email, password_hash, salt, role, crm_role, soc_role, approved, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    id, email, hash, salt,
+    isFirstUser ? "admin" : "agent",
+    isFirstUser ? "admin" : "agent",
+    isFirstUser ? "admin" : "agent",
+    isFirstUser ? 1 : 0,
+    now
+  ).run();
 
   if (!isFirstUser) {
     await sendNotificationEmail(
       env,
-      "New helpdesk agent signup pending approval",
-      `${email} just signed up for agent access and is waiting for approval.\n\nApprove them from the admin panel: https://jcalleon.github.io/portfolio-labs/itsm-helpdesk/admin.html`
+      "New signup pending approval",
+      `${email} just signed up and is waiting for approval. One approval grants access to ITSM, CRM, and SOC.\n\nApprove them from the admin panel: https://jcalleon.github.io/portfolio-labs/itsm-helpdesk/admin.html`
     );
   }
 
   return json({
-    message: isFirstUser ? "Account created as admin." : "Account created. An admin needs to approve your access before you can log in.",
+    message: isFirstUser ? "Account created as admin." : "Account created. An admin needs to approve your access before you can log in — once approved, you'll have access to all three apps.",
     approved: isFirstUser,
   }, 201, headers);
 }
@@ -293,7 +300,16 @@ async function login(request, env, headers) {
     `INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`
   ).bind(token, user.id, now.toISOString(), expires.toISOString()).run();
 
-  return json({ token, user: { id: user.id, email: user.email, role: user.role } }, 200, headers);
+  return json({
+    token,
+    user: {
+      id: user.id,
+      email: user.email,
+      itsm_role: user.role,
+      crm_role: user.crm_role,
+      soc_role: user.soc_role,
+    },
+  }, 200, headers);
 }
 
 // POST /auth/logout
@@ -307,7 +323,15 @@ async function logout(request, env, headers) {
 async function me(request, env, headers) {
   const user = await getSessionUser(request, env);
   if (!user) return json({ error: "unauthorized" }, 401, headers);
-  return json({ user: { id: user.id, email: user.email, role: user.role } }, 200, headers);
+  return json({
+    user: {
+      id: user.id,
+      email: user.email,
+      itsm_role: user.role,
+      crm_role: user.crm_role,
+      soc_role: user.soc_role,
+    },
+  }, 200, headers);
 }
 
 // GET /auth/pending — list unapproved users. Admin-only.
@@ -327,12 +351,14 @@ async function listUsers(request, env, headers) {
   if (!user || user.role !== "admin") return json({ error: "unauthorized" }, 401, headers);
 
   const { results } = await env.DB.prepare(
-    `SELECT id, email, role, approved, created_at FROM users ORDER BY created_at DESC`
+    `SELECT id, email, role, crm_role, soc_role, approved, created_at FROM users ORDER BY created_at DESC`
   ).all();
   return json({ users: results }, 200, headers);
 }
 
-// PATCH /auth/users/:id — approve/reject/change role. Admin-only.
+// PATCH /auth/users/:id — approve/reject (account-wide), or change a
+// per-app role (action: "set_role", app: "itsm"|"crm"|"soc", role: "admin"|"agent").
+// Admin-only.
 async function updateUser(id, request, env, headers) {
   const admin = await getSessionUser(request, env);
   if (!admin || admin.role !== "admin") return json({ error: "unauthorized" }, 401, headers);
@@ -344,19 +370,28 @@ async function updateUser(id, request, env, headers) {
     return json({ error: "Invalid JSON body" }, 400, headers);
   }
 
-  // Prevent an admin from deleting or demoting their own account — avoids
-  // accidentally locking everyone out if you're the only admin.
-  if (id === admin.id && (body.action === "reject" || (body.action === "set_role" && body.role !== "admin"))) {
+  const ROLE_COLUMN_BY_APP = { itsm: "role", crm: "crm_role", soc: "soc_role" };
+
+  // Prevent an admin from deleting or demoting their own ITSM admin status —
+  // avoids accidentally locking everyone out if you're the only admin.
+  // (Self-demotion in CRM/SOC alone is fine — ITSM admin is what gates this panel.)
+  const demotingSelfFromItsmAdmin =
+    id === admin.id && body.action === "set_role" && (body.app || "itsm") === "itsm" && body.role !== "admin";
+  if (id === admin.id && (body.action === "reject" || demotingSelfFromItsmAdmin)) {
     return json({ error: "cannot_modify_self", message: "You can't remove or demote your own account." }, 400, headers);
   }
 
   if (body.action === "approve") {
+    // Single approval gate — unlocks ITSM, CRM, and SOC at once.
     await env.DB.prepare(`UPDATE users SET approved = 1 WHERE id = ?`).bind(id).run();
   } else if (body.action === "reject") {
     await env.DB.prepare(`DELETE FROM sessions WHERE user_id = ?`).bind(id).run();
     await env.DB.prepare(`DELETE FROM users WHERE id = ?`).bind(id).run();
   } else if (body.action === "set_role" && ["admin", "agent"].includes(body.role)) {
-    await env.DB.prepare(`UPDATE users SET role = ? WHERE id = ?`).bind(body.role, id).run();
+    const app = body.app || "itsm"; // default to itsm for backward compatibility with old callers
+    const column = ROLE_COLUMN_BY_APP[app];
+    if (!column) return json({ error: "Invalid app" }, 400, headers);
+    await env.DB.prepare(`UPDATE users SET ${column} = ? WHERE id = ?`).bind(body.role, id).run();
   } else {
     return json({ error: "Invalid action" }, 400, headers);
   }
