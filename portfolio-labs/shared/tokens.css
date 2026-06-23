@@ -445,3 +445,103 @@ textarea:focus-visible {
     min-width: 220px;
   }
 }
+
+/* ---------- Auth pages (login / signup) — shared across all 3 apps ---------- */
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+}
+
+.auth-card {
+  width: 380px;
+  max-width: 100%;
+  padding: var(--space-6);
+}
+
+.auth-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.auth-subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: var(--space-2);
+  line-height: 1.5;
+}
+
+.auth-footer {
+  margin-top: var(--space-5);
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+#login-error:empty, #signup-error:empty, #signup-success:empty {
+  display: none;
+}
+#login-error, #signup-error, #signup-success {
+  margin-top: var(--space-3);
+}
+
+/* ---------- Topbar user badge + logout — shared across all 3 apps ---------- */
+
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.topbar-user-email {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.topbar-logout-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+}
+.topbar-logout-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--text-dim);
+}
+
+/* ---------- Generic form controls — shared across all 3 apps ---------- */
+/* (CRM's style.css also defines these for its "new deal" modal; identical
+   rules here so SOC and ITSM get the same styled inputs without duplicating
+   CRM-specific layout. Safe to have in both places — same selectors, same
+   values, last one loaded wins with no visual difference.) */
+
+.form-row { margin-bottom: var(--space-4); }
+
+.form-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+  display: block;
+}
+
+.form-input, .form-textarea {
+  width: 100%;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.form-textarea { min-height: 80px; resize: vertical; }
