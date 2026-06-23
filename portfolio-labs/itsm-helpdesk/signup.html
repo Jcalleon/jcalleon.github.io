@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign up — Helpdesk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background-image: none; }
+    .auth-wrap { max-width: 420px; margin: 0 auto; padding: 64px 24px; }
+    .auth-eyebrow {
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+    }
+    .auth-title { font-size: 24px; font-weight: 700; margin: 0 0 8px; }
+    .auth-sub { color: var(--text-secondary); font-size: 13px; margin-bottom: 24px; line-height: 1.6; }
+    .auth-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+    .auth-switch { display: block; text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary); }
+  </style>
+</head>
+<body class="app-itsm">
+  <div class="auth-wrap">
+    <div class="auth-eyebrow">◆ HELPDESK</div>
+    <h1 class="auth-title">Create an agent account</h1>
+    <p class="auth-sub">New accounts need admin approval before you can log in. You'll be notified once approved (check back, or ask the admin directly).</p>
+
+    <div class="auth-panel">
+      <div id="signup-form">
+        <div class="form-row">
+          <label class="form-label">Email</label>
+          <input class="form-input" id="su-email" type="email" placeholder="you@example.com" />
+        </div>
+        <div class="form-row">
+          <label class="form-label">Password (min 8 characters)</label>
+          <input class="form-input" id="su-password" type="password" placeholder="••••••••" />
+        </div>
+        <div id="signup-error" style="margin-bottom:16px;"></div>
+        <button class="copilot-trigger" id="su-submit-btn" style="width:100%; justify-content:center;">Create account</button>
+      </div>
+
+      <div id="signup-success" style="display:none; text-align:center;">
+        <div style="font-size:32px; margin-bottom:12px;">✓</div>
+        <div style="font-size:15px; font-weight:600; margin-bottom:8px;" id="success-title"></div>
+        <p style="color:var(--text-secondary); font-size:13px;" id="success-detail"></p>
+      </div>
+    </div>
+
+    <a class="auth-switch" href="login.html">Already have an account? Log in →</a>
+  </div>
+
+  <script src="../shared/ticket-client.js"></script>
+  <script>
+    document.getElementById("su-submit-btn").onclick = async () => {
+      const email = document.getElementById("su-email").value.trim();
+      const password = document.getElementById("su-password").value;
+      const errorEl = document.getElementById("signup-error");
+      const btn = document.getElementById("su-submit-btn");
+      errorEl.innerHTML = "";
+
+      if (!email || !password) {
+        errorEl.innerHTML = '<div class="copilot-error">Enter both email and password.</div>';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Creating account...";
+      const res = await ticketApi("/auth/signup", { method: "POST", body: { email, password } });
+      btn.disabled = false;
+      btn.textContent = "Create account";
+
+      if (!res.ok) {
+        errorEl.innerHTML = `<div class="copilot-error">${res.message || "Something went wrong."}</div>`;
+        return;
+      }
+
+      document.getElementById("signup-form").style.display = "none";
+      document.getElementById("signup-success").style.display = "block";
+      document.getElementById("success-title").textContent = res.approved ? "Account created!" : "Account created — pending approval";
+      document.getElementById("success-detail").textContent = res.message;
+    };
+  </script>
+</body>
+</html>
