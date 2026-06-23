@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Helpdesk — Lab by Jacob Calleon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="app-itsm">
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-mark">◆ HELPDESK</span>
+        <span class="topbar-app-name">Ticket Queue</span>
+      </div>
+      <div class="topbar-right">
+        <button class="copilot-trigger" id="new-ticket-btn" style="padding:6px 14px;">+ New ticket</button>
+        <span class="topbar-link">⤺ <a href="https://jcalleon.github.io/#lab">Back to portfolio</a></span>
+      </div>
+    </header>
+
+    <nav class="sidebar">
+      <div class="nav-section-label">Queue</div>
+      <div class="nav-item active" data-filter="all">
+        <span>All tickets</span>
+        <span class="nav-item-count" id="count-all">0</span>
+      </div>
+      <div class="nav-item" data-filter="new">
+        <span>New</span>
+        <span class="nav-item-count" id="count-new">0</span>
+      </div>
+      <div class="nav-item" data-filter="investigating">
+        <span>In progress</span>
+        <span class="nav-item-count" id="count-investigating">0</span>
+      </div>
+      <div class="nav-item" data-filter="resolved">
+        <span>Resolved</span>
+        <span class="nav-item-count" id="count-resolved">0</span>
+      </div>
+
+      <div class="nav-section-label">Priority</div>
+      <div class="nav-item" data-pri-filter="high">
+        <span><span class="dot dot-high"></span> High</span>
+        <span class="nav-item-count" id="count-high">0</span>
+      </div>
+      <div class="nav-item" data-pri-filter="medium">
+        <span><span class="dot dot-medium"></span> Medium</span>
+        <span class="nav-item-count" id="count-medium">0</span>
+      </div>
+      <div class="nav-item" data-pri-filter="low">
+        <span><span class="dot dot-low"></span> Low</span>
+        <span class="nav-item-count" id="count-low">0</span>
+      </div>
+
+      <div class="nav-section-label">About this lab</div>
+      <p style="font-size:12px; color:var(--text-dim); padding:0 var(--space-2); line-height:1.6;">
+        Simulated ticket queue. Open a ticket, then "Triage with AI" to have Claude categorize
+        it, set a priority, and draft a first response — live, via a rate-limited API proxy.
+      </p>
+    </nav>
+
+    <main class="main">
+      <div class="panel">
+        <table class="table" id="ticket-table">
+          <thead>
+            <tr>
+              <th>Priority</th>
+              <th>Ticket</th>
+              <th>Requester</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>SLA</th>
+            </tr>
+          </thead>
+          <tbody id="ticket-tbody"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <div class="drawer-overlay" id="drawer-overlay"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title" id="drawer-ticket-id">Ticket</span>
+      <button class="drawer-close" id="drawer-close" aria-label="Close panel">✕</button>
+    </div>
+    <div class="drawer-body" id="drawer-body"></div>
+  </aside>
+
+  <script src="data.js"></script>
+  <script src="../shared/ai-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

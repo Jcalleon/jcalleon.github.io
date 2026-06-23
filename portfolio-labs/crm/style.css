@@ -1,0 +1,151 @@
+/* CRM Pipeline — app-specific styles layered on shared tokens.css */
+
+/* Override shell: no sidebar, full-width kanban */
+.crm-shell {
+  grid-template-columns: 1fr;
+}
+
+.crm-main {
+  padding: var(--space-5);
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+}
+
+.kanban-board {
+  display: flex;
+  gap: var(--space-4);
+  height: 100%;
+  min-width: max-content;
+}
+
+.kanban-column {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.kanban-column-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.kanban-column-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.kanban-column-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+}
+
+.deal-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.deal-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.deal-card-company {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.deal-card-contact {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: var(--space-2);
+}
+
+.deal-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.deal-card-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.deal-card-activity {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.detail-section { margin-bottom: var(--space-5); }
+
+.detail-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: var(--space-2);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.detail-field-label { font-size: 11px; color: var(--text-dim); }
+.detail-field-value { font-size: 12px; color: var(--text-primary); }
+
+.stage-select {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  width: 100%;
+}
+
+.notes-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.note-entry {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}

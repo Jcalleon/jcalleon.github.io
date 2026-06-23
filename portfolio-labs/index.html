@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Labs — Jacob Calleon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared/tokens.css" />
+  <style>
+    body { background-image: none; }
+    .labs-wrap {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 64px 24px;
+    }
+    .labs-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+    .labs-title {
+      font-size: 32px;
+      font-weight: 700;
+      margin: 0 0 12px;
+    }
+    .labs-sub {
+      color: var(--text-secondary);
+      font-size: 15px;
+      max-width: 560px;
+      margin-bottom: 40px;
+      line-height: 1.6;
+    }
+    .lab-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+    .lab-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      display: block;
+      transition: border-color 0.15s ease, transform 0.1s ease;
+    }
+    .lab-card:hover { transform: translateY(-2px); text-decoration: none; }
+    .lab-card.soc:hover { border-color: #FF5D5D; }
+    .lab-card.itsm:hover { border-color: #4D9FFF; }
+    .lab-card.crm:hover { border-color: #3DD68C; }
+    .lab-mark {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+      display: inline-block;
+    }
+    .lab-card.soc .lab-mark { color: #FF8080; }
+    .lab-card.itsm .lab-mark { color: #7FB8FF; }
+    .lab-card.crm .lab-mark { color: #6BE0AA; }
+    .lab-card-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    .lab-card-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    .labs-back {
+      display: inline-block;
+      margin-top: 48px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="labs-wrap">
+    <div class="labs-eyebrow">◆ jcalleon.github.io / lab</div>
+    <h1 class="labs-title">AI-integrated ops tools</h1>
+    <p class="labs-sub">
+      Three small, working apps built to practice the patterns behind real enterprise tooling —
+      a SOC console, an ITSM helpdesk, and a sales CRM. Each one makes a live call to Claude
+      through a rate-limited proxy for a specific AI-assisted workflow. Built with Claude Code.
+    </p>
+
+    <div class="lab-grid">
+      <a class="lab-card soc" href="soc-dashboard/index.html">
+        <span class="lab-mark">◆ SOC-CONSOLE</span>
+        <div class="lab-card-title">Detection &amp; Triage Console</div>
+        <div class="lab-card-desc">
+          Simulated SIEM alert queue. AI triage classifies severity and writes an analyst-style
+          explanation and next step for any alert.
+        </div>
+      </a>
+
+      <a class="lab-card itsm" href="itsm-helpdesk/index.html">
+        <span class="lab-mark">◆ HELPDESK</span>
+        <div class="lab-card-title">ITSM Ticket Queue</div>
+        <div class="lab-card-desc">
+          Ticket queue with SLA tracking. AI triage auto-categorizes, sets priority, and drafts
+          a first-response reply.
+        </div>
+      </a>
+
+      <a class="lab-card crm" href="crm/index.html">
+        <span class="lab-mark">◆ PIPELINE</span>
+        <div class="lab-card-title">Sales Pipeline CRM</div>
+        <div class="lab-card-desc">
+          Kanban deal pipeline with activity notes. AI summarizes deal history and recommends
+          a concrete next action.
+        </div>
+      </a>
+    </div>
+
+    <a class="labs-back" href="https://jcalleon.github.io/#lab">← Back to main portfolio</a>
+  </div>
+</body>
+</html>

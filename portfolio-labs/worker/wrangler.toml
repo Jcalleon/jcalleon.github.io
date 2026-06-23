@@ -1,0 +1,9 @@
+name = "portfolio-ai-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# After creating the KV namespace (see DEPLOY.md), paste its id below:
+# wrangler kv:namespace create RATE_LIMIT_KV
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "d06360e0bf274d9f95fec2c4eaabae31"

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pipeline CRM — Lab by Jacob Calleon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="app-crm">
+
+  <div class="app-shell crm-shell">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-mark">◆ PIPELINE</span>
+        <span class="topbar-app-name">Deals</span>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-link" id="pipeline-total"></span>
+        <span class="topbar-link">⤺ <a href="https://jcalleon.github.io/#lab">Back to portfolio</a></span>
+      </div>
+    </header>
+
+    <main class="main crm-main" id="kanban-board">
+      <!-- columns injected by app.js -->
+    </main>
+  </div>
+
+  <div class="drawer-overlay" id="drawer-overlay"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title" id="drawer-deal-id">Deal</span>
+      <button class="drawer-close" id="drawer-close" aria-label="Close panel">✕</button>
+    </div>
+    <div class="drawer-body" id="drawer-body"></div>
+  </aside>
+
+  <script src="data.js"></script>
+  <script src="../shared/ai-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
