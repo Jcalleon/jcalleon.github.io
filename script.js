@@ -7,6 +7,16 @@ document.querySelectorAll('[data-placeholder]').forEach(el => {
   });
 });
 
+// Credly-pending cred-cards — same stand-in treatment until real
+// verification URLs are added (see TODO comments in index.html).
+document.querySelectorAll('[data-credly-pending]').forEach(el => {
+  el.addEventListener('click', (e) => {
+    e.preventDefault();
+    el.classList.add('placeholder-flash');
+    setTimeout(() => el.classList.remove('placeholder-flash'), 900);
+  });
+});
+
 // ===========================================================================
 // NETWORK TOPOLOGY ANIMATION — nodes + edges + traveling "packets"
 // Grounded in the subject: this is what a network/SOC diagram actually looks
