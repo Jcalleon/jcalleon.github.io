@@ -1,5 +1,5 @@
 /**
- * Shared auth client — centralized login across SOC, ITSM, and CRM.
+ * Shared auth client — centralized login across SOC, ITSM, CRM, and Directory.
  * Used by: soc-dashboard, crm (and conceptually itsm-helpdesk, which already
  * has its own copy of this logic baked into ticket-client.js).
  *
