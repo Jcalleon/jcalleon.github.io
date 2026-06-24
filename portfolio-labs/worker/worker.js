@@ -924,6 +924,89 @@ async function listSocAgents(request, env, headers) {
   return json({ agents: results }, 200, headers);
 }
 
+// ============================================================
+// DIRECTORY APP (AD users + RADIUS/TACACS+ history)
+// ============================================================
+// Phase B note: these routes are deliberately OPEN (no auth check) right
+// now, by explicit choice — Phase D wires this app into the same
+// centralized auth as SOC/ITSM/CRM (adding a directory_role column and
+// gating these routes the same way SOC's are gated on soc_role). Until
+// then, calling getSessionUser here and 401-ing on no session would break
+// the app outright, since its frontend doesn't send a session token yet.
+
+async function listAdUsers(request, env, headers) {
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM ad_users ORDER BY
+       CASE status WHEN 'locked' THEN 0 WHEN 'disabled' THEN 1 ELSE 2 END,
+       display_name ASC`
+  ).all();
+
+  // groups is stored as JSON text — parse it back into a real array for
+  // the frontend rather than making every caller do this themselves.
+  const users = results.map((u) => ({ ...u, groups: JSON.parse(u.groups) }));
+  return json({ users }, 200, headers);
+}
+
+async function getAdUser(id, request, env, headers) {
+  const adUser = await env.DB.prepare(`SELECT * FROM ad_users WHERE id = ?`).bind(id).first();
+  if (!adUser) return json({ error: "not_found" }, 404, headers);
+  adUser.groups = JSON.parse(adUser.groups);
+
+  const { results: radiusEvents } = await env.DB.prepare(
+    `SELECT * FROM radius_events WHERE user_id = ? ORDER BY timestamp DESC`
+  ).bind(id).all();
+
+  const { results: tacacsEvents } = await env.DB.prepare(
+    `SELECT * FROM tacacs_events WHERE user_id = ? ORDER BY timestamp DESC`
+  ).bind(id).all();
+
+  const { results: auditLog } = await env.DB.prepare(
+    `SELECT * FROM directory_audit_log WHERE user_id = ? ORDER BY created_at DESC`
+  ).bind(id).all();
+
+  return json({ user: adUser, radiusEvents, tacacsEvents, auditLog }, 200, headers);
+}
+
+// PATCH /directory/users/:id — change account status (enabled/disabled/
+// locked). Mirrors updateAlert's diff-and-audit-log pattern.
+async function updateAdUserStatus(id, request, env, headers) {
+  // Soft lookup: attribute to the real logged-in user if a session exists,
+  // otherwise fall back to a clearly-labeled placeholder. Phase B's
+  // frontend doesn't send a session token at all yet, so this can't be a
+  // hard requirement without breaking the app — Phase D tightens this to
+  // a real requirement once the app is wired into centralized auth.
+  const sessionUser = await getSessionUser(request, env);
+  const actorEmail = sessionUser ? sessionUser.email : "unauthenticated (pre-auth-integration demo)";
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const { status } = body;
+  if (!["enabled", "disabled", "locked"].includes(status)) {
+    return json({ error: "Invalid status" }, 400, headers);
+  }
+
+  const current = await env.DB.prepare(`SELECT * FROM ad_users WHERE id = ?`).bind(id).first();
+  if (!current) return json({ error: "not_found" }, 404, headers);
+  if (current.status === status) {
+    return json({ error: "No change — already in that state" }, 400, headers);
+  }
+
+  await env.DB.prepare(`UPDATE ad_users SET status = ? WHERE id = ?`).bind(status, id).run();
+
+  await env.DB.prepare(
+    `INSERT INTO directory_audit_log (id, user_id, actor_email, field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(genId("DAUD"), id, actorEmail, "status", current.status, status, new Date().toISOString()).run();
+
+  const updated = await env.DB.prepare(`SELECT * FROM ad_users WHERE id = ?`).bind(id).first();
+  updated.groups = JSON.parse(updated.groups);
+  return json({ user: updated }, 200, headers);
+}
+
 // GET /stats — aggregate dashboard data. Agent-only.
 async function getStats(request, env, headers) {
   const user = await getSessionUser(request, env);
@@ -996,6 +1079,9 @@ export default {
     if (path === "/alerts/bulk-dismiss" && request.method === "POST") return bulkDismissAlerts(request, env, headers);
     if (path === "/soc/agents" && request.method === "GET") return listSocAgents(request, env, headers);
 
+    // ---- Directory app routes ----
+    if (path === "/directory/users" && request.method === "GET") return listAdUsers(request, env, headers);
+
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
     if (ticketMatch && request.method === "GET") return getTicket(ticketMatch[1], request, env, headers);
     if (ticketMatch && request.method === "PATCH") return updateTicket(ticketMatch[1], request, env, headers);
@@ -1015,6 +1101,10 @@ export default {
     const alertMatch = path.match(/^\/alerts\/([^\/]+)$/);
     if (alertMatch && request.method === "GET") return getAlert(alertMatch[1], request, env, headers);
     if (alertMatch && request.method === "PATCH") return updateAlert(alertMatch[1], request, env, headers);
+
+    const directoryUserMatch = path.match(/^\/directory\/users\/([^\/]+)$/);
+    if (directoryUserMatch && request.method === "GET") return getAdUser(directoryUserMatch[1], request, env, headers);
+    if (directoryUserMatch && request.method === "PATCH") return updateAdUserStatus(directoryUserMatch[1], request, env, headers);
 
     return json({ error: "not_found" }, 404, headers);
   },
