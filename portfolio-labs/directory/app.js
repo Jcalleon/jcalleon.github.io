@@ -45,6 +45,11 @@ function normalizeUser(u) {
     lastLogon: u.last_logon,
     created: u.created_at,
     mfaEnrolled: !!u.mfa_enrolled,
+    anomalyVerdict: u.anomaly_verdict,
+    anomalyConfidence: u.anomaly_confidence,
+    anomalyAnalysis: u.anomaly_analysis,
+    anomalyNextStep: u.anomaly_next_step,
+    anomalyAnalyzedAt: u.anomaly_analyzed_at,
   };
 }
 
@@ -224,7 +229,7 @@ async function openDrawer(userId) {
   const tacacs = res.tacacsEvents.map(normalizeTacacsEvent);
 
   drawerBody.innerHTML = renderDrawerContent(user, radius, tacacs, res.auditLog || []);
-  attachDrawerHandlers(user);
+  attachDrawerHandlers(user, radius, tacacs);
 }
 
 function closeDrawer() {
@@ -235,6 +240,19 @@ function closeDrawer() {
 }
 
 function renderDrawerContent(user, radius, tacacs, auditLog) {
+  // Saved anomaly-analysis result, if this user was analyzed in a previous
+  // session — mirrors SOC's savedTriage pattern exactly, including the
+  // lesson already learned there: persist it, don't lose it on drawer close.
+  const savedAnalysis = user.anomalyVerdict
+    ? `<div class="copilot-output">VERDICT: ${escapeHtml(user.anomalyVerdict)}
+CONFIDENCE: ${escapeHtml(user.anomalyConfidence || "—")}
+
+ANALYSIS: ${escapeHtml(user.anomalyAnalysis || "")}
+
+RECOMMENDED NEXT STEP: ${escapeHtml(user.anomalyNextStep || "")}</div>
+       <div class="demo-note">Analyzed ${user.anomalyAnalyzedAt ? formatTime(user.anomalyAnalyzedAt) : ""} — saved to this user.</div>`
+    : "";
+
   const radiusRows = radius.length === 0
     ? `<div class="demo-note">No RADIUS authentication events for this user.</div>`
     : radius
@@ -339,13 +357,20 @@ function renderDrawerContent(user, radius, tacacs, auditLog) {
     </div>
 
     <div class="detail-section">
+      <div class="detail-label">AI anomaly analysis</div>
+      <button class="copilot-trigger" id="analyze-btn">✦ ${user.anomalyVerdict ? "Re-analyze access patterns" : "Analyze access patterns"}</button>
+      <div class="demo-note">Live call to Claude via a rate-limited proxy. Capped per visitor/day. Results are saved to this user.</div>
+      <div id="analysis-result" style="margin-top:12px;">${savedAnalysis}</div>
+    </div>
+
+    <div class="detail-section">
       <div class="detail-label">Audit trail</div>
       ${auditRows}
     </div>
   `;
 }
 
-function attachDrawerHandlers(user) {
+function attachDrawerHandlers(user, radius, tacacs) {
   document.getElementById("drawer-close").onclick = closeDrawer;
 
   document.getElementById("status-select").onchange = async (e) => {
@@ -370,6 +395,199 @@ function attachDrawerHandlers(user) {
     renderTable();
     openDrawer(user.id); // re-fetch to show the new audit log entry
   };
+
+  document.getElementById("analyze-btn").onclick = () => runAnalysis(user, radius, tacacs);
+}
+
+// ---- AI anomaly analysis ----
+
+async function runAnalysis(user, radius, tacacs) {
+  const btn = document.getElementById("analyze-btn");
+  const resultEl = document.getElementById("analysis-result");
+
+  btn.disabled = true;
+  resultEl.innerHTML = `<div class="copilot-loading">
+    <span class="copilot-dot"></span><span class="copilot-dot"></span><span class="copilot-dot"></span>
+    Analyzing access patterns...
+  </div>`;
+
+  const system = `You are a security analyst's AI co-pilot embedded in an identity & access console. You will be given one user's AD profile and their full RADIUS (network/VPN auth) and TACACS+ (device admin) event history. Decide whether this access pattern looks normal for this person's role, or shows signs of compromise or misuse — rapid failed-then-successful logins, access attempts outside their normal role/privilege level, unusual timing, or device-admin attempts on systems they have no business touching.
+
+Respond in this exact format, plain text, no markdown headers:
+
+VERDICT: [Normal Activity / Needs Review / Likely Compromised]
+CONFIDENCE: [Low/Medium/High]
+
+ANALYSIS: 2-3 sentences explaining the reasoning, referencing the specific events given.
+
+RECOMMENDED NEXT STEP: One concrete action.
+
+Be specific to the actual events provided. Do not be generic. Keep total response under 150 words.`;
+
+  const prompt = `User: ${user.displayName} (${user.id})
+Title: ${user.title}, Department: ${user.department}
+Account status: ${user.status}
+Groups: ${user.groups.join(", ")}
+
+RADIUS events (most recent first):
+${radius.map((e) => `${e.timestamp} — ${e.result} via ${e.nas} (${e.authType}) from ${e.sourceIp}${e.rejectReason ? " — " + e.rejectReason : ""}`).join("\n") || "none"}
+
+TACACS+ events (most recent first):
+${tacacs.map((e) => `${e.timestamp} — ${e.result} on ${e.device} at privilege level ${e.privilegeLevel}${e.command ? " — ran: " + e.command : ""}${e.rejectReason ? " — " + e.rejectReason : ""}`).join("\n") || "none"}`;
+
+  const res = await callAI({ app: "directory", system, prompt });
+  btn.disabled = false;
+
+  if (!res.ok) {
+    resultEl.innerHTML = `<div class="copilot-error">${escapeHtml(res.message || "Demo limit reached.")}</div>`;
+    return;
+  }
+
+  resultEl.innerHTML = `<div class="copilot-output">${escapeHtml(res.text)}</div>`;
+
+  const parsed = parseAnalysisResponse(res.text);
+  if (parsed) {
+    const saveRes = await directoryApi(`/directory/users/${encodeURIComponent(user.id)}/analyze`, {
+      method: "POST",
+      body: parsed,
+    });
+    if (saveRes.ok) {
+      const updated = normalizeUser(saveRes.user);
+      Object.assign(user, updated);
+      const idx = users.findIndex((u) => u.id === user.id);
+      if (idx !== -1) users[idx] = updated;
+      btn.textContent = "✦ Re-analyze access patterns";
+      resultEl.innerHTML = `<div class="copilot-output">${escapeHtml(res.text)}</div>
+        <div class="demo-note">Analyzed just now — saved to this user.</div>`;
+    }
+    // If saving fails, the AI result is still shown above — same tradeoff
+    // SOC's triage makes: don't block the visible result on a save failure.
+  }
+}
+
+// Parses the model's plain-text response back into fields, same approach
+// SOC's parseTriageResponse uses — the system prompt fixes this exact
+// format, so a line-based parse is reliable here, not arbitrary free text.
+function parseAnalysisResponse(text) {
+  const verdictMatch = text.match(/VERDICT:\s*(.+)/i);
+  const confidenceMatch = text.match(/CONFIDENCE:\s*(.+)/i);
+  const analysisMatch = text.match(/ANALYSIS:\s*([\s\S]*?)(?=\n\s*RECOMMENDED NEXT STEP:|$)/i);
+  const nextStepMatch = text.match(/RECOMMENDED NEXT STEP:\s*([\s\S]*)/i);
+
+  if (!verdictMatch || !analysisMatch) return null;
+
+  return {
+    verdict: verdictMatch[1].trim(),
+    confidence: confidenceMatch ? confidenceMatch[1].trim() : null,
+    analysis: analysisMatch[1].trim(),
+    nextStep: nextStepMatch ? nextStepMatch[1].trim() : null,
+  };
+}
+
+// ---- Scan all users (one batched AI call, not one per user) ----
+
+async function runScanAll() {
+  const btn = document.getElementById("scan-all-btn");
+  const resultEl = document.getElementById("scan-all-result");
+
+  btn.disabled = true;
+  resultEl.innerHTML = `<div class="copilot-loading">
+    <span class="copilot-dot"></span><span class="copilot-dot"></span><span class="copilot-dot"></span>
+    Scanning ${users.length} users for anomalies...
+  </div>`;
+
+  // Fetch full history for every user first — the bulk AI call needs each
+  // user's RADIUS/TACACS+ events, not just the directory-listing summary.
+  const histories = await Promise.all(
+    users.map(async (u) => {
+      const res = await directoryApi(`/directory/users/${encodeURIComponent(u.id)}`);
+      if (!res.ok) return { user: u, radius: [], tacacs: [] };
+      return {
+        user: u,
+        radius: res.radiusEvents.map(normalizeRadiusEvent),
+        tacacs: res.tacacsEvents.map(normalizeTacacsEvent),
+      };
+    })
+  );
+
+  const system = `You are a security analyst's AI co-pilot embedded in an identity & access console. You will be given a batch of users, each with their AD profile and RADIUS/TACACS+ event history. For EACH user, decide if their access pattern looks normal, needs review, or looks like likely compromise/misuse.
+
+Respond with one line per user, in EXACTLY this format, no other text:
+<username>: NORMAL | <one short reason>
+<username>: NEEDS_REVIEW | <one short reason>
+<username>: LIKELY_COMPROMISED | <one short reason>
+
+One line per user given, nothing else.`;
+
+  const prompt = histories
+    .map(
+      ({ user, radius, tacacs }) => `User: ${user.id} (${user.title}, ${user.department}, status: ${user.status})
+RADIUS: ${radius.map((e) => `${e.result}${e.rejectReason ? "(" + e.rejectReason + ")" : ""}`).join(", ") || "none"}
+TACACS+: ${tacacs.map((e) => `${e.result}${e.rejectReason ? "(" + e.rejectReason + ")" : ""}`).join(", ") || "none"}`
+    )
+    .join("\n\n---\n\n");
+
+  const res = await callAI({ app: "directory", system, prompt });
+  btn.disabled = false;
+
+  if (!res.ok) {
+    resultEl.innerHTML = `<div class="copilot-error">${escapeHtml(res.message || "Demo limit reached — couldn't run the batch scan.")}</div>`;
+    return;
+  }
+
+  const decisions = parseScanAllResponse(res.text, users.map((u) => u.id));
+  const flagged = decisions.filter((d) => d.verdict !== "NORMAL");
+
+  if (decisions.length === 0) {
+    resultEl.innerHTML = `<div class="copilot-error">Couldn't parse the scan results. Try again.</div>`;
+    return;
+  }
+
+  // Persist results for users that got a real decision, mapped into the
+  // same verdict vocabulary saveAnomalyAnalysis/bulkSaveAnomalyAnalysis
+  // expects (matching the per-user analyze flow's verdict strings).
+  const VERDICT_LABELS = { NORMAL: "Normal Activity", NEEDS_REVIEW: "Needs Review", LIKELY_COMPROMISED: "Likely Compromised" };
+  const bulkResults = decisions.map((d) => ({
+    userId: d.id,
+    verdict: VERDICT_LABELS[d.verdict] || d.verdict,
+    confidence: "Medium",
+    analysis: d.reason,
+    nextStep: d.verdict === "LIKELY_COMPROMISED" ? "Disable the account and investigate immediately." : null,
+  }));
+
+  const saveRes = await directoryApi("/directory/users/bulk-analyze", {
+    method: "POST",
+    body: { results: bulkResults },
+  });
+
+  if (!saveRes.ok) {
+    resultEl.innerHTML = `<div class="copilot-error">Scan completed but saving results failed: ${escapeHtml(saveRes.message || "unknown error")}</div>`;
+    return;
+  }
+
+  resultEl.innerHTML = `<div class="copilot-output">Scanned ${decisions.length} user(s). ${
+    flagged.length > 0
+      ? `${flagged.length} flagged for review: ${flagged.map((f) => `${escapeHtml(f.id)} (${f.verdict.replace(/_/g, " ").toLowerCase()})`).join(", ")}.`
+      : "No anomalies found."
+  }</div>`;
+
+  await loadUsers();
+  renderTable();
+  updateCounts();
+}
+
+function parseScanAllResponse(text, expectedIds) {
+  const decisions = [];
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    const match = line.match(/^([A-Za-z0-9-]+):\s*(NORMAL|NEEDS_REVIEW|LIKELY_COMPROMISED)\s*\|?\s*(.*)$/i);
+    if (!match) continue;
+    const [, id, verdict, reason] = match;
+    if (expectedIds.includes(id)) {
+      decisions.push({ id, verdict: verdict.toUpperCase(), reason: reason || "" });
+    }
+  }
+  return decisions;
 }
 
 // ---- Nav filtering ----
@@ -400,6 +618,9 @@ if (searchInput) {
     renderTable();
   });
 }
+
+const scanAllBtn = document.getElementById("scan-all-btn");
+if (scanAllBtn) scanAllBtn.addEventListener("click", runScanAll);
 
 drawerOverlay.addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => {
