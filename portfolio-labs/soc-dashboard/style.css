@@ -75,3 +75,15 @@
   font-size: 12px;
   font-family: var(--font-sans);
 }
+
+/* ---------- Phase 3: clusters view, bulk select ---------- */
+
+/* Cluster header rows are informational, not clickable — override the
+   table's default pointer cursor + hover highlight so they don't look
+   interactive when they aren't. */
+.cluster-header-row {
+  cursor: default !important;
+}
+.cluster-header-row:hover {
+  background: inherit !important;
+}

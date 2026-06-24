@@ -1,15 +1,25 @@
 // SOC Dashboard — app logic
 //
-// Phase 2 rewrite: alerts now come from the real Worker/D1 backend
-// (GET /alerts) instead of the static data.js array. Status changes and
-// assignment persist via PATCH /alerts/:id, and AI triage results are
-// saved via POST /alerts/:id/triage so they survive a page reload instead
-// of vanishing the moment the drawer closes.
+// Phase 2: alerts come from the real Worker/D1 backend (GET /alerts)
+// instead of the static data.js array. Status/assignment changes persist
+// via PATCH /alerts/:id, AI triage results save via POST /alerts/:id/triage.
+//
+// Phase 3 additions:
+//   - Bulk false-positive dismissal: select alerts, one batched AI call
+//     assesses the whole selection at once (cheaper on the rate limit than
+//     one call per alert), then POST /alerts/bulk-dismiss persists the
+//     ones the AI is confident about as resolved with a distinct
+//     resolution_reason so they're never confused with manual resolutions.
+//   - Daily digest: one AI call summarizing today's alerts. Ephemeral,
+//     like the original single-alert triage was before Phase 2 — no
+//     persistence needed since it's a point-in-time summary, not a
+//     decision about any specific alert.
+//   - MITRE clustering: pure client-side grouping by base technique ID
+//     (e.g. T1059 groups T1059, T1059.001, T1059.002...). No AI call —
+//     this is exact-match grouping, not correlation.
 //
 // Entry point is initSocDashboard(user), called by index.html only after
-// the auth check (requireValidSessionOrRedirect) confirms a valid session —
-// this file no longer self-initializes at the bottom, since it now has
-// real async work to do before there's anything to render.
+// the auth check (requireValidSessionOrRedirect) confirms a valid session.
 
 const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
 
@@ -17,7 +27,9 @@ let alerts = [];
 let currentUser = null;
 let currentFilter = "all";
 let currentSevFilter = null;
+let currentView = "table"; // "table" | "clusters"
 let selectedAlertId = null;
+let selectedAlertIds = new Set(); // multi-select for bulk AI dismissal
 let socAgents = []; // users with soc_role != "none", for the assignment dropdown
 
 const tbody = document.getElementById("alert-tbody");
@@ -36,6 +48,128 @@ function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : str;
   return div.innerHTML;
+}
+
+// ---- MITRE clustering (pure grouping, no AI call) ----
+
+// Extracts the base technique ID from a mitre field like "T1059.001 — PowerShell"
+// -> "T1059". Sub-techniques of the same parent cluster together, since
+// they represent the same underlying tactic. Returns null for non-technique
+// values like "n/a — Operational", which shouldn't cluster with anything.
+function baseTechniqueId(mitre) {
+  const match = (mitre || "").match(/^T(\d+)(?:\.\d+)?/);
+  return match ? `T${match[1]}` : null;
+}
+
+function buildMitreClusters(list) {
+  const groups = new Map(); // baseId -> { techniqueLabel, alerts: [] }
+  const unclustered = [];
+
+  for (const alert of list) {
+    const baseId = baseTechniqueId(alert.mitre);
+    if (!baseId) {
+      unclustered.push(alert);
+      continue;
+    }
+    if (!groups.has(baseId)) {
+      groups.set(baseId, { baseId, alerts: [] });
+    }
+    groups.get(baseId).alerts.push(alert);
+  }
+
+  // Only genuinely useful as "clusters" if 2+ alerts share a technique —
+  // singletons get folded into unclustered rather than shown as a
+  // 1-alert "cluster", which wouldn't tell an analyst anything new.
+  const clusters = [];
+  for (const group of groups.values()) {
+    if (group.alerts.length >= 2) clusters.push(group);
+    else unclustered.push(...group.alerts);
+  }
+
+  clusters.sort((a, b) => b.alerts.length - a.alerts.length);
+  return { clusters, unclustered };
+}
+
+function renderClusterView() {
+  const list = getFilteredAlerts();
+  const { clusters, unclustered } = buildMitreClusters(list);
+
+  if (clusters.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">
+      No technique clusters yet — clustering needs 2+ alerts sharing the same MITRE technique.
+      ${unclustered.length > 0 ? `${unclustered.length} alert(s) shown below have unique techniques.` : ""}
+    </div></td></tr>`;
+  } else {
+    tbody.innerHTML = "";
+  }
+
+  // Render clusters as grouped sections directly in the table body, using
+  // a header row per cluster — keeps the same <table> structure (and CSS)
+  // rather than building a whole separate layout for this view.
+  for (const cluster of clusters) {
+    const headerRow = document.createElement("tr");
+    headerRow.className = "cluster-header-row";
+    headerRow.innerHTML = `<td colspan="7" style="background:var(--panel-raised); font-family:var(--font-mono); font-size:11px; color:var(--accent-text); padding:8px 12px;">
+      ${cluster.baseId} — ${cluster.alerts.length} related alerts (possible single campaign)
+    </td>`;
+    tbody.appendChild(headerRow);
+
+    for (const alert of cluster.alerts) {
+      tbody.appendChild(buildAlertRow(alert));
+    }
+  }
+
+  if (unclustered.length > 0 && clusters.length > 0) {
+    const headerRow = document.createElement("tr");
+    headerRow.className = "cluster-header-row";
+    headerRow.innerHTML = `<td colspan="7" style="background:var(--panel-raised); font-family:var(--font-mono); font-size:11px; color:var(--text-dim); padding:8px 12px;">
+      Unclustered — ${unclustered.length} alert(s) with unique techniques
+    </td>`;
+    tbody.appendChild(headerRow);
+    for (const alert of unclustered) {
+      tbody.appendChild(buildAlertRow(alert));
+    }
+  } else if (clusters.length === 0) {
+    for (const alert of unclustered) {
+      tbody.appendChild(buildAlertRow(alert));
+    }
+  }
+
+  // Bulk-select bar isn't shown in clusters view — keeps this view focused
+  // on pattern-spotting rather than action-taking; switch back to table
+  // view to select alerts for bulk dismissal.
+  const bar = document.getElementById("bulk-action-bar");
+  if (bar) bar.style.display = "none";
+}
+
+// Shared row-building logic between table view and cluster view, so a row
+// looks and behaves identically in both (same click-to-open-drawer, same
+// checkbox, same badges) rather than maintaining two near-duplicate templates.
+function buildAlertRow(alert) {
+  const tr = document.createElement("tr");
+  tr.className = alert.id === selectedAlertId ? "selected" : "";
+  tr.innerHTML = `
+    <td><input type="checkbox" class="alert-checkbox" data-alert-id="${alert.id}" ${selectedAlertIds.has(alert.id) ? "checked" : ""} /></td>
+    <td><span class="badge badge-${alert.severity}">${alert.severity}</span></td>
+    <td>
+      <div class="alert-title-cell">
+        <span class="alert-title-main">${escapeHtml(alert.title)}</span>
+        <span class="alert-title-id mono">${alert.id} · ${escapeHtml(alert.mitre)}${alert.resolution_reason === "ai_bulk_dismissed" ? " · AI-dismissed" : ""}</span>
+      </div>
+    </td>
+    <td class="mono">${escapeHtml(alert.host)}</td>
+    <td>${escapeHtml(alert.source)}</td>
+    <td><span class="badge badge-${statusBadgeClass(alert.status)}">${alert.status}</span></td>
+    <td class="mono" style="color:var(--text-dim); font-size:11px;">${formatTime(alert.created_at)}</td>
+  `;
+  tr.querySelector(".alert-checkbox").addEventListener("click", (e) => e.stopPropagation());
+  tr.querySelector(".alert-checkbox").addEventListener("change", (e) => {
+    if (e.target.checked) selectedAlertIds.add(alert.id);
+    else selectedAlertIds.delete(alert.id);
+    updateBulkBar();
+  });
+  tr.addEventListener("click", () => openDrawer(alert.id));
+  return tr;
 }
 
 function statusBadgeClass(status) {
@@ -91,33 +225,42 @@ function getFilteredAlerts() {
 }
 
 function renderTable() {
+  if (currentView === "clusters") {
+    renderClusterView();
+    return;
+  }
+
   const list = getFilteredAlerts();
   tbody.innerHTML = "";
 
   if (list.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No alerts match this filter.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No alerts match this filter.</div></td></tr>`;
+    updateBulkBar();
     return;
   }
 
   for (const alert of list) {
-    const tr = document.createElement("tr");
-    tr.className = alert.id === selectedAlertId ? "selected" : "";
-    tr.innerHTML = `
-      <td><span class="badge badge-${alert.severity}">${alert.severity}</span></td>
-      <td>
-        <div class="alert-title-cell">
-          <span class="alert-title-main">${escapeHtml(alert.title)}</span>
-          <span class="alert-title-id mono">${alert.id} · ${escapeHtml(alert.mitre)}</span>
-        </div>
-      </td>
-      <td class="mono">${escapeHtml(alert.host)}</td>
-      <td>${escapeHtml(alert.source)}</td>
-      <td><span class="badge badge-${statusBadgeClass(alert.status)}">${alert.status}</span></td>
-      <td class="mono" style="color:var(--text-dim); font-size:11px;">${formatTime(alert.created_at)}</td>
-    `;
-    tr.addEventListener("click", () => openDrawer(alert.id));
-    tbody.appendChild(tr);
+    tbody.appendChild(buildAlertRow(alert));
   }
+
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById("bulk-action-bar");
+  if (!bar) return; // not present in clusters view
+  const count = selectedAlertIds.size;
+  if (count === 0) {
+    bar.style.display = "none";
+  } else {
+    bar.style.display = "flex";
+    document.getElementById("bulk-count").textContent = `${count} selected`;
+  }
+
+  const visible = getFilteredAlerts();
+  const allSelected = visible.length > 0 && visible.every((a) => selectedAlertIds.has(a.id));
+  const selectAllCheckbox = document.getElementById("select-all-checkbox");
+  if (selectAllCheckbox) selectAllCheckbox.checked = allSelected;
 }
 
 function openDrawer(alertId) {
@@ -402,7 +545,135 @@ RECOMMENDED NEXT STEP: Pivot on the source host in your EDR timeline and correla
   `;
 }
 
-// ---- Nav filtering ----
+// ---- Bulk false-positive dismissal (one batched AI call, not one per alert) ----
+
+async function runBulkDismiss() {
+  const ids = Array.from(selectedAlertIds);
+  if (ids.length === 0) return;
+
+  const selected = alerts.filter((a) => ids.includes(a.id));
+  const btn = document.getElementById("bulk-dismiss-btn");
+  const resultArea = document.getElementById("bulk-action-result");
+
+  btn.disabled = true;
+  resultArea.innerHTML = `<div class="copilot-loading">
+    <span class="copilot-dot"></span><span class="copilot-dot"></span><span class="copilot-dot"></span>
+    Assessing ${selected.length} alert(s) for false positives...
+  </div>`;
+
+  const system = `You are a SOC analyst's AI co-pilot. You will be given a batch of security alerts. For EACH alert, decide if it is very likely a false positive that can be safely auto-resolved, or if it needs human review. Be conservative — only mark an alert as a false positive if the evidence strongly supports it; when uncertain, say it needs review.
+
+Respond with one line per alert, in EXACTLY this format, no other text:
+<alert_id>: FALSE_POSITIVE | <one short reason>
+<alert_id>: NEEDS_REVIEW | <one short reason>
+
+One line per alert ID given, nothing else.`;
+
+  const prompt = selected
+    .map(
+      (a) => `Alert ID: ${a.id}
+Title: ${a.title}
+Severity: ${a.severity}
+Host: ${a.host}
+Source: ${a.source}
+MITRE: ${a.mitre}
+Detail: ${a.details}`
+    )
+    .join("\n\n---\n\n");
+
+  const res = await callAI({ app: "soc", system, prompt });
+  btn.disabled = false;
+
+  if (!res.ok) {
+    resultArea.innerHTML = `<div class="copilot-error">${escapeHtml(res.message || "Demo limit reached — couldn't run the batch assessment.")}</div>`;
+    return;
+  }
+
+  const decisions = parseBulkDismissResponse(res.text, ids);
+  const toDismiss = decisions.filter((d) => d.verdict === "FALSE_POSITIVE").map((d) => d.id);
+  const toReview = decisions.filter((d) => d.verdict !== "FALSE_POSITIVE");
+
+  if (toDismiss.length === 0) {
+    resultArea.innerHTML = `<div class="copilot-output">AI reviewed ${selected.length} alert(s) and didn't find any it's confident are false positives. No changes made — these still need human review.</div>`;
+    return;
+  }
+
+  const dismissRes = await authApi("/alerts/bulk-dismiss", {
+    method: "POST",
+    authed: true,
+    body: { alertIds: toDismiss },
+  });
+
+  if (!dismissRes.ok) {
+    resultArea.innerHTML = `<div class="copilot-error">AI assessment completed but saving the result failed: ${escapeHtml(dismissRes.message || "unknown error")}</div>`;
+    return;
+  }
+
+  resultArea.innerHTML = `<div class="copilot-output">Dismissed ${toDismiss.length} of ${selected.length} alert(s) as false positives.${
+    toReview.length > 0 ? ` ${toReview.length} still need human review (not changed).` : ""
+  }</div>`;
+
+  selectedAlertIds.clear();
+  await loadAlerts();
+  renderTable();
+  updateCounts();
+}
+
+// Parses lines like "ALR-10481: FALSE_POSITIVE | reason text" back into
+// structured decisions. The system prompt fixes this exact line format,
+// so this is parsing a known shape, not arbitrary free text.
+function parseBulkDismissResponse(text, expectedIds) {
+  const decisions = [];
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    const match = line.match(/^([A-Za-z0-9-]+):\s*(FALSE_POSITIVE|NEEDS_REVIEW)\s*\|?\s*(.*)$/i);
+    if (!match) continue;
+    const [, id, verdict, reason] = match;
+    if (expectedIds.includes(id)) {
+      decisions.push({ id, verdict: verdict.toUpperCase(), reason: reason || "" });
+    }
+  }
+  return decisions;
+}
+
+// ---- Daily digest (ephemeral — one AI call, not persisted) ----
+
+async function runDailyDigest() {
+  const btn = document.getElementById("digest-btn");
+  const resultArea = document.getElementById("digest-result");
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todaysAlerts = alerts.filter((a) => a.created_at.startsWith(today));
+
+  if (todaysAlerts.length === 0) {
+    resultArea.innerHTML = `<div class="demo-note">No alerts created today yet.</div>`;
+    return;
+  }
+
+  btn.disabled = true;
+  resultArea.innerHTML = `<div class="copilot-loading">
+    <span class="copilot-dot"></span><span class="copilot-dot"></span><span class="copilot-dot"></span>
+    Summarizing today's queue...
+  </div>`;
+
+  const system = `You are a SOC shift-handoff assistant. Given today's security alerts, write a concise shift-handoff summary for the next analyst. Plain text, no markdown headers. Cover: overall picture (how many, what severities), anything that needs immediate attention, and any pattern worth flagging across multiple alerts. Keep it under 130 words.`;
+
+  const prompt = todaysAlerts
+    .map((a) => `${a.id} [${a.severity}] ${a.title} — ${a.status} — host: ${a.host} — mitre: ${a.mitre}`)
+    .join("\n");
+
+  const res = await callAI({ app: "soc", system, prompt: `Today's alerts (${todaysAlerts.length} total):\n${prompt}` });
+  btn.disabled = false;
+
+  if (!res.ok) {
+    resultArea.innerHTML = `<div class="copilot-error">${escapeHtml(res.message || "Demo limit reached.")}</div>`;
+    return;
+  }
+
+  resultArea.innerHTML = `<div class="copilot-output">${escapeHtml(res.text)}</div>`;
+}
+
+// ---- Nav filtering, view toggle, bulk select, and Phase 3 buttons ----
 
 function wireNavFilters() {
   document.querySelectorAll("[data-filter]").forEach((el) => {
@@ -424,6 +695,31 @@ function wireNavFilters() {
       renderTable();
     });
   });
+
+  document.querySelectorAll("[data-view]").forEach((el) => {
+    el.addEventListener("click", () => {
+      currentView = el.dataset.view;
+      document.querySelectorAll("[data-view]").forEach((n) => n.classList.remove("active"));
+      el.classList.add("active");
+      renderTable();
+    });
+  });
+
+  const selectAllCheckbox = document.getElementById("select-all-checkbox");
+  if (selectAllCheckbox) {
+    selectAllCheckbox.addEventListener("change", (e) => {
+      const list = getFilteredAlerts();
+      if (e.target.checked) list.forEach((a) => selectedAlertIds.add(a.id));
+      else list.forEach((a) => selectedAlertIds.delete(a.id));
+      renderTable();
+    });
+  }
+
+  const bulkDismissBtn = document.getElementById("bulk-dismiss-btn");
+  if (bulkDismissBtn) bulkDismissBtn.addEventListener("click", runBulkDismiss);
+
+  const digestBtn = document.getElementById("digest-btn");
+  if (digestBtn) digestBtn.addEventListener("click", runDailyDigest);
 
   drawerOverlay.addEventListener("click", closeDrawer);
   document.addEventListener("keydown", (e) => {
