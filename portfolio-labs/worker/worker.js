@@ -660,6 +660,59 @@ async function bulkUpdateTickets(request, env, headers) {
 // endpoint does NOT call the AI itself — same division of responsibility
 // as saveTriage: the AI call happens client-side via the existing proxy,
 // this just persists the resulting decision.
+// POST /alerts/bulk-update — manual bulk status or assignment change,
+// human-driven (no AI involved). Distinct from /alerts/bulk-dismiss, which
+// requires the AI to assess each alert first. This is the direct
+// equivalent of ITSM's bulkUpdateTickets — select alerts you've already
+// reviewed yourself, change them all at once.
+async function bulkUpdateAlerts(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.soc_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const { alertIds, field, value } = body;
+  if (!Array.isArray(alertIds) || alertIds.length === 0) {
+    return json({ error: "alertIds must be a non-empty array" }, 400, headers);
+  }
+  if (!["status", "assigned_to"].includes(field)) {
+    return json({ error: "Invalid field for bulk update" }, 400, headers);
+  }
+
+  let updated = 0;
+  const now = new Date().toISOString();
+  for (const alertId of alertIds) {
+    const current = await env.DB.prepare(`SELECT * FROM alerts WHERE id = ?`).bind(alertId).first();
+    if (!current || current[field] === value) continue;
+
+    if (field === "status" && value === "resolved") {
+      // Manual resolve gets resolution_reason = 'manual' — keeps it
+      // distinguishable from AI-dismissed alerts in the table and in
+      // investigation-view counts, same reasoning as the v6 migration.
+      await env.DB.prepare(`UPDATE alerts SET status = ?, resolution_reason = 'manual' WHERE id = ?`).bind(value, alertId).run();
+    } else if (field === "status") {
+      // Reopening or moving to investigating clears any stale resolution
+      // tag from a previous resolve/dismiss cycle.
+      await env.DB.prepare(`UPDATE alerts SET status = ?, resolution_reason = NULL WHERE id = ?`).bind(value, alertId).run();
+    } else {
+      await env.DB.prepare(`UPDATE alerts SET ${field} = ? WHERE id = ?`).bind(value, alertId).run();
+    }
+
+    await env.DB.prepare(
+      `INSERT INTO alert_audit_log (id, alert_id, actor_email, field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(genId("AAUD"), alertId, user.email, field, current[field], value, now).run();
+    updated++;
+  }
+
+  return json({ message: `Updated ${updated} alert(s).`, updated }, 200, headers);
+}
+
 async function bulkDismissAlerts(request, env, headers) {
   const user = await getSessionUser(request, env);
   if (!user) return json({ error: "unauthorized" }, 401, headers);
@@ -939,6 +992,7 @@ export default {
 
     // ---- SOC alert routes ----
     if (path === "/alerts" && request.method === "GET") return listAlerts(request, env, headers);
+    if (path === "/alerts/bulk-update" && request.method === "POST") return bulkUpdateAlerts(request, env, headers);
     if (path === "/alerts/bulk-dismiss" && request.method === "POST") return bulkDismissAlerts(request, env, headers);
     if (path === "/soc/agents" && request.method === "GET") return listSocAgents(request, env, headers);
 
