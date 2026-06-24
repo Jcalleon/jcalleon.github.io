@@ -655,6 +655,121 @@ async function bulkUpdateTickets(request, env, headers) {
 }
 
 // GET /auth/agents — list approved agents (for assignment dropdown). Any logged-in user.
+async function listAlerts(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+
+  const { results } = await env.DB.prepare(
+    `SELECT a.*, u.email as assigned_email
+     FROM alerts a
+     LEFT JOIN users u ON u.id = a.assigned_to
+     ORDER BY
+       CASE a.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+       a.created_at DESC`
+  ).all();
+
+  return json({ alerts: results }, 200, headers);
+}
+
+async function getAlert(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+
+  const alert = await env.DB.prepare(`SELECT * FROM alerts WHERE id = ?`).bind(id).first();
+  if (!alert) return json({ error: "not_found" }, 404, headers);
+
+  const { results: auditLog } = await env.DB.prepare(
+    `SELECT * FROM alert_audit_log WHERE alert_id = ? ORDER BY created_at DESC`
+  ).bind(id).all();
+
+  let assignedEmail = null;
+  if (alert.assigned_to) {
+    const assignee = await env.DB.prepare(`SELECT email FROM users WHERE id = ?`).bind(alert.assigned_to).first();
+    assignedEmail = assignee ? assignee.email : null;
+  }
+
+  return json({ alert, auditLog, assignedEmail }, 200, headers);
+}
+
+async function updateAlert(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.soc_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const current = await env.DB.prepare(`SELECT * FROM alerts WHERE id = ?`).bind(id).first();
+  if (!current) return json({ error: "not_found" }, 404, headers);
+
+  const fields = [];
+  const values = [];
+  const auditEntries = [];
+
+  for (const key of ["status", "assigned_to"]) {
+    if (body[key] !== undefined && body[key] !== current[key]) {
+      fields.push(`${key} = ?`);
+      values.push(body[key]);
+      auditEntries.push({ field: key, old: current[key], new: body[key] });
+    }
+  }
+  if (fields.length === 0) return json({ error: "No updatable fields supplied" }, 400, headers);
+
+  values.push(id);
+  await env.DB.prepare(`UPDATE alerts SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+
+  for (const entry of auditEntries) {
+    await env.DB.prepare(
+      `INSERT INTO alert_audit_log (id, alert_id, actor_email, field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(genId("AAUD"), id, user.email, entry.field, entry.old, entry.new, new Date().toISOString()).run();
+  }
+
+  const alert = await env.DB.prepare(`SELECT * FROM alerts WHERE id = ?`).bind(id).first();
+  return json({ alert }, 200, headers);
+}
+
+// POST /alerts/:id/triage — saves an AI triage result onto the alert so it
+// survives a page reload / drawer close instead of being lost the moment
+// the response leaves the drawer. Does NOT call the AI itself — the
+// frontend still calls the existing AI proxy directly, then POSTs the
+// parsed result here to persist it.
+async function saveTriage(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.soc_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const { verdict, confidence, analysis, nextStep } = body;
+  if (!verdict || !analysis) {
+    return json({ error: "verdict and analysis are required" }, 400, headers);
+  }
+
+  const current = await env.DB.prepare(`SELECT * FROM alerts WHERE id = ?`).bind(id).first();
+  if (!current) return json({ error: "not_found" }, 404, headers);
+
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `UPDATE alerts SET triage_verdict = ?, triage_confidence = ?, triage_analysis = ?, triage_next_step = ?, triaged_at = ? WHERE id = ?`
+  ).bind(verdict, confidence || null, analysis, nextStep || null, now, id).run();
+
+  await env.DB.prepare(
+    `INSERT INTO alert_audit_log (id, alert_id, actor_email, field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(genId("AAUD"), id, user.email, "triage", current.triage_verdict || null, verdict, now).run();
+
+  const alert = await env.DB.prepare(`SELECT * FROM alerts WHERE id = ?`).bind(id).first();
+  return json({ alert }, 200, headers);
+}
+
 async function listAgents(request, env, headers) {
   const user = await getSessionUser(request, env);
   if (!user) return json({ error: "unauthorized" }, 401, headers);
@@ -665,6 +780,17 @@ async function listAgents(request, env, headers) {
   return json({ agents: results }, 200, headers);
 }
 
+// GET /soc/agents — list users with SOC access (soc_role != 'none'), for
+// the alert-assignment dropdown. Mirrors listAgents but scoped to SOC.
+async function listSocAgents(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+
+  const { results } = await env.DB.prepare(
+    `SELECT id, email FROM users WHERE approved = 1 AND soc_role != 'none' ORDER BY email ASC`
+  ).all();
+  return json({ agents: results }, 200, headers);
+}
 
 // GET /stats — aggregate dashboard data. Agent-only.
 async function getStats(request, env, headers) {
@@ -732,6 +858,10 @@ export default {
     if (path === "/auth/agents" && request.method === "GET") return listAgents(request, env, headers);
     if (path === "/stats" && request.method === "GET") return getStats(request, env, headers);
 
+    // ---- SOC alert routes ----
+    if (path === "/alerts" && request.method === "GET") return listAlerts(request, env, headers);
+    if (path === "/soc/agents" && request.method === "GET") return listSocAgents(request, env, headers);
+
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
     if (ticketMatch && request.method === "GET") return getTicket(ticketMatch[1], request, env, headers);
     if (ticketMatch && request.method === "PATCH") return updateTicket(ticketMatch[1], request, env, headers);
@@ -741,6 +871,13 @@ export default {
 
     const ratingMatch = path.match(/^\/tickets\/([^\/]+)\/rating$/);
     if (ratingMatch && request.method === "POST") return submitRating(ratingMatch[1], request, env, headers);
+
+    const alertTriageMatch = path.match(/^\/alerts\/([^\/]+)\/triage$/);
+    if (alertTriageMatch && request.method === "POST") return saveTriage(alertTriageMatch[1], request, env, headers);
+
+    const alertMatch = path.match(/^\/alerts\/([^\/]+)$/);
+    if (alertMatch && request.method === "GET") return getAlert(alertMatch[1], request, env, headers);
+    if (alertMatch && request.method === "PATCH") return updateAlert(alertMatch[1], request, env, headers);
 
     return json({ error: "not_found" }, 404, headers);
   },
