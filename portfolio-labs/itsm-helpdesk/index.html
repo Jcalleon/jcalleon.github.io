@@ -19,10 +19,11 @@
       </div>
       <div class="topbar-right">
         <a href="dashboard.html" class="topbar-link" style="margin-right:4px;">Dashboard</a>
-        <a href="admin.html" class="topbar-link" style="margin-right:4px;">Admin</a>
+        <a href="../admin/index.html" class="topbar-link" style="margin-right:4px;">Admin</a>
         <button class="copilot-trigger" id="new-ticket-btn" style="padding:6px 14px;">+ New ticket</button>
         <span class="topbar-link" id="user-email" style="margin-left:8px;"></span>
         <button class="btn-secondary" id="logout-btn" style="padding:4px 10px; font-size:12px;">Log out</button>
+        <span class="topbar-link">⛁ <a href="../launcher.html">Launcher</a></span>
         <span class="topbar-link">⤺ <a href="https://jcalleon.github.io/#lab">Back to portfolio</a></span>
       </div>
     </header>
@@ -125,6 +126,26 @@
 
   <script src="../shared/ai-client.js"></script>
   <script src="../shared/ticket-client.js"></script>
+  <script>
+    // Enforce itsm_role !== "none": even a valid session shouldn't reach the
+    // queue if ITSM access specifically has been revoked. Mirrors the same
+    // check already used in crm/index.html and soc-dashboard/index.html.
+    (async () => {
+      if (!requireAuthOrRedirect()) return;
+      const res = await ticketApi("/auth/me", { authed: true });
+      if (!res.ok) {
+        clearSessionToken();
+        clearStoredUser();
+        window.location.href = "login.html";
+        return;
+      }
+      if (res.user.itsm_role === "none") {
+        window.location.href = "no-access.html";
+        return;
+      }
+      setStoredUser(res.user);
+    })();
+  </script>
   <script src="app.js"></script>
 </body>
 </html>

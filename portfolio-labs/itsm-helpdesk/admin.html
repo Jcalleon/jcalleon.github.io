@@ -4,27 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — Helpdesk</title>
+  <meta http-equiv="refresh" content="0; url=../admin/index.html" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css" />
   <link rel="stylesheet" href="style.css" />
-  <style>
-    .user-row {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 18px; background: var(--panel); border: 1px solid var(--border);
-      border-radius: 8px; margin-bottom: 10px;
-    }
-    .user-email { font-size: 13px; font-weight: 500; }
-    .user-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
-    .user-actions { display: flex; gap: 8px; }
-    .btn-small {
-      font-size: 12px; padding: 6px 12px; border-radius: 6px; cursor: pointer;
-      border: 1px solid var(--border); background: var(--panel-raised); color: var(--text-secondary);
-    }
-    .btn-approve { border-color: var(--status-success); color: var(--status-success); }
-    .btn-reject { border-color: var(--status-critical); color: var(--status-critical); }
-    .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 24px 0 12px; }
-  </style>
 </head>
 <body class="app-itsm">
   <div class="app-shell" style="grid-template-columns: 1fr;">
@@ -40,101 +24,17 @@
     </header>
 
     <main class="main" id="main-content" style="max-width:700px;">
-      <div id="not-admin" style="display:none;" class="empty-state" style="padding:60px;">
-        You need admin access to view this page.
-      </div>
-
-      <div id="admin-content" style="display:none;">
-        <div class="section-title">Pending approval</div>
-        <div id="pending-list"></div>
-
-        <div class="section-title">All users</div>
-        <div id="users-list"></div>
+      <div class="empty-state" style="padding:60px;">
+        Admin has moved to a centralized panel covering all three apps.<br/><br/>
+        Redirecting you now — <a href="../admin/index.html">click here</a> if you're not redirected automatically.
       </div>
     </main>
   </div>
 
-  <script src="../shared/ticket-client.js"></script>
   <script>
-    async function loadAdmin() {
-      if (!requireAuthOrRedirect()) return;
-
-      const pendingRes = await ticketApi("/auth/pending", { authed: true });
-      const usersRes = await ticketApi("/auth/users", { authed: true });
-
-      if (!pendingRes.ok || !usersRes.ok) {
-        document.getElementById("not-admin").style.display = "block";
-        return;
-      }
-
-      document.getElementById("admin-content").style.display = "block";
-      renderPending(pendingRes.pending);
-      renderUsers(usersRes.users);
-    }
-
-    function renderPending(pending) {
-      const el = document.getElementById("pending-list");
-      if (pending.length === 0) {
-        el.innerHTML = '<div class="empty-state" style="padding:20px;">No pending signups.</div>';
-        return;
-      }
-      el.innerHTML = pending.map(u => `
-        <div class="user-row">
-          <div>
-            <div class="user-email">${u.email}</div>
-            <div class="user-meta">Signed up ${new Date(u.created_at).toLocaleString()}</div>
-          </div>
-          <div class="user-actions">
-            <button class="btn-small btn-approve" data-action="approve" data-id="${u.id}">Approve</button>
-            <button class="btn-small btn-reject" data-action="reject" data-id="${u.id}">Reject</button>
-          </div>
-        </div>
-      `).join("");
-      attachActionHandlers();
-    }
-
-    function renderUsers(users) {
-      const el = document.getElementById("users-list");
-      el.innerHTML = users.map(u => `
-        <div class="user-row">
-          <div>
-            <div class="user-email">${u.email} ${u.role === "admin" ? '<span class="badge badge-success" style="margin-left:6px;">admin</span>' : ""}</div>
-            <div class="user-meta">${u.approved ? "Approved" : "Pending"} · joined ${new Date(u.created_at).toLocaleDateString()}</div>
-          </div>
-          <div class="user-actions">
-            ${u.role !== "admin"
-              ? `<button class="btn-small" data-action="set_role" data-role="admin" data-id="${u.id}">Make admin</button>`
-              : `<button class="btn-small" data-action="set_role" data-role="agent" data-id="${u.id}">Remove admin</button>`}
-            <button class="btn-small btn-reject" data-action="reject" data-confirm="true" data-email="${u.email}" data-id="${u.id}">Remove</button>
-          </div>
-        </div>
-      `).join("");
-      attachActionHandlers();
-    }
-
-    function attachActionHandlers() {
-      document.querySelectorAll("[data-action]").forEach(btn => {
-        btn.onclick = async () => {
-          const id = btn.dataset.id;
-          const action = btn.dataset.action;
-
-          if (btn.dataset.confirm) {
-            const ok = window.confirm(`Permanently remove ${btn.dataset.email}? This can't be undone.`);
-            if (!ok) return;
-          }
-
-          const body = action === "set_role" ? { action, role: btn.dataset.role } : { action };
-          const res = await ticketApi(`/auth/users/${encodeURIComponent(id)}`, { method: "PATCH", authed: true, body });
-          if (!res.ok) {
-            alert(res.message || "That action couldn't be completed.");
-            return;
-          }
-          loadAdmin();
-        };
-      });
-    }
-
-    loadAdmin();
+    // Belt-and-suspenders redirect alongside the <meta refresh> above, in
+    // case a browser/extension blocks meta-refresh.
+    window.location.replace("../admin/index.html");
   </script>
 </body>
 </html>
