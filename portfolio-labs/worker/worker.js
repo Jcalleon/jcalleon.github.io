@@ -654,6 +654,49 @@ async function bulkUpdateTickets(request, env, headers) {
   return json({ message: `Updated ${updated} ticket(s).`, updated }, 200, headers);
 }
 
+// POST /alerts/bulk-dismiss — marks multiple alerts resolved with
+// resolution_reason = 'ai_bulk_dismissed', after the frontend's single AI
+// call has already assessed the batch as likely false positives. This
+// endpoint does NOT call the AI itself — same division of responsibility
+// as saveTriage: the AI call happens client-side via the existing proxy,
+// this just persists the resulting decision.
+async function bulkDismissAlerts(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.soc_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const { alertIds } = body;
+  if (!Array.isArray(alertIds) || alertIds.length === 0) {
+    return json({ error: "alertIds must be a non-empty array" }, 400, headers);
+  }
+
+  let dismissed = 0;
+  const now = new Date().toISOString();
+  for (const alertId of alertIds) {
+    const current = await env.DB.prepare(`SELECT * FROM alerts WHERE id = ?`).bind(alertId).first();
+    if (!current || current.status === "resolved") continue; // skip already-resolved, nothing to do
+
+    await env.DB.prepare(
+      `UPDATE alerts SET status = 'resolved', resolution_reason = 'ai_bulk_dismissed' WHERE id = ?`
+    ).bind(alertId).run();
+
+    await env.DB.prepare(
+      `INSERT INTO alert_audit_log (id, alert_id, actor_email, field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(genId("AAUD"), alertId, user.email, "status", current.status, "resolved (AI bulk dismiss)", now).run();
+
+    dismissed++;
+  }
+
+  return json({ message: `Dismissed ${dismissed} alert(s) as false positives.`, dismissed }, 200, headers);
+}
+
 // GET /auth/agents — list approved agents (for assignment dropdown). Any logged-in user.
 async function listAlerts(request, env, headers) {
   const user = await getSessionUser(request, env);
@@ -860,6 +903,7 @@ export default {
 
     // ---- SOC alert routes ----
     if (path === "/alerts" && request.method === "GET") return listAlerts(request, env, headers);
+    if (path === "/alerts/bulk-dismiss" && request.method === "POST") return bulkDismissAlerts(request, env, headers);
     if (path === "/soc/agents" && request.method === "GET") return listSocAgents(request, env, headers);
 
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
