@@ -51,6 +51,7 @@
     .lab-card.soc:hover { border-color: #FF5D5D; }
     .lab-card.itsm:hover { border-color: #4D9FFF; }
     .lab-card.crm:hover { border-color: #3DD68C; }
+    .lab-card.directory:hover { border-color: #A78BFA; }
     .lab-mark {
       font-family: var(--font-mono);
       font-size: 11px;
@@ -61,6 +62,7 @@
     .lab-card.soc .lab-mark { color: #FF8080; }
     .lab-card.itsm .lab-mark { color: #7FB8FF; }
     .lab-card.crm .lab-mark { color: #6BE0AA; }
+    .lab-card.directory .lab-mark { color: #C4B5FD; }
     .lab-card-title {
       font-size: 17px;
       font-weight: 600;
@@ -85,9 +87,10 @@
     <div class="labs-eyebrow">◆ jcalleon.github.io / lab</div>
     <h1 class="labs-title">AI-integrated ops tools</h1>
     <p class="labs-sub">
-      Three small, working apps built to practice the patterns behind real enterprise tooling —
-      a SOC console, an ITSM helpdesk, and a sales CRM. Each one makes a live call to Claude
-      through a rate-limited proxy for a specific AI-assisted workflow. Built with Claude Code.
+      Four small, working apps built to practice the patterns behind real enterprise tooling —
+      a SOC console, an ITSM helpdesk, a sales CRM, and an identity & access directory.
+      Each one makes a live call to Claude through a rate-limited proxy for a specific
+      AI-assisted workflow. Built with Claude Code.
     </p>
 
     <div class="lab-grid">
@@ -115,6 +118,15 @@
         <div class="lab-card-desc">
           Kanban deal pipeline with activity notes. AI summarizes deal history and recommends
           a concrete next action.
+        </div>
+      </a>
+
+      <a class="lab-card directory" href="directory/index.html">
+        <span class="lab-mark">◆ DIRECTORY</span>
+        <div class="lab-card-title">Identity &amp; Access Directory</div>
+        <div class="lab-card-desc">
+          Simulated AD directory with RADIUS and TACACS+ event history per user. AI scans
+          access patterns to flag likely-compromised accounts.
         </div>
       </a>
     </div>
