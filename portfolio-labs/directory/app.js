@@ -1,12 +1,80 @@
 // Directory — app logic
 //
-// Phase A: static version running entirely on data.js (no backend yet),
-// matching where SOC and ITSM both started before their database work.
-// AD users are the anchor identity; clicking one shows their full RADIUS
-// (network/VPN auth) and TACACS+ (device admin) history, similar in spirit
-// to SOC's investigation view but built around identity instead of alerts.
+// Phase B: fetches AD users + RADIUS/TACACS+ history from the real
+// Worker/D1 backend instead of static data.js. Account status changes
+// (enable/disable/lock) now persist, with an audit trail.
+//
+// Deliberately NOT auth-gated yet — these API calls don't send a session
+// token. Phase D wires this app into the same centralized auth as
+// SOC/ITSM/CRM; until then, the backend routes are intentionally open
+// (see worker.js comments) so this app works standalone.
 
-let users = AD_USERS.map((u) => ({ ...u }));
+const WORKER_URL = "https://portfolio-ai-proxy.jcalleon.workers.dev";
+
+async function directoryApi(path, { method = "GET", body } = {}) {
+  try {
+    const res = await fetch(`${WORKER_URL}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: data.error, message: data.message };
+    }
+    return { ok: true, ...data };
+  } catch (err) {
+    return { ok: false, error: "network_error", message: "Couldn't reach the server right now." };
+  }
+}
+
+// D1 returns snake_case columns directly from SELECT * — normalize once
+// here at the boundary rather than rewrite every reference throughout the
+// rest of this file to snake_case.
+function normalizeUser(u) {
+  return {
+    id: u.id,
+    displayName: u.display_name,
+    email: u.email,
+    department: u.department,
+    ou: u.ou,
+    title: u.title,
+    status: u.status,
+    groups: Array.isArray(u.groups) ? u.groups : JSON.parse(u.groups || "[]"),
+    lastLogon: u.last_logon,
+    created: u.created_at,
+    mfaEnrolled: !!u.mfa_enrolled,
+  };
+}
+
+function normalizeRadiusEvent(e) {
+  return {
+    id: e.id,
+    userId: e.user_id,
+    timestamp: e.timestamp,
+    nas: e.nas,
+    result: e.result,
+    authType: e.auth_type,
+    sourceIp: e.source_ip,
+    rejectReason: e.reject_reason,
+  };
+}
+
+function normalizeTacacsEvent(e) {
+  return {
+    id: e.id,
+    userId: e.user_id,
+    timestamp: e.timestamp,
+    device: e.device,
+    privilegeLevel: e.privilege_level,
+    result: e.result,
+    command: e.command,
+    rejectReason: e.reject_reason,
+  };
+}
+
+let users = [];
 let currentFilter = "all";
 let currentDeptFilter = null;
 let searchQuery = "";
@@ -17,6 +85,7 @@ const drawer = document.getElementById("drawer");
 const drawerOverlay = document.getElementById("drawer-overlay");
 const drawerBody = document.getElementById("drawer-body");
 const drawerUserId = document.getElementById("drawer-user-id");
+const mainPanel = document.querySelector(".main .panel");
 
 function formatTime(iso) {
   if (!iso) return "—";
@@ -46,6 +115,20 @@ function statusBadgeClass(status) {
   if (status === "disabled") return "info";
   if (status === "locked") return "critical";
   return "info";
+}
+
+const AD_STATUS_ORDER = { locked: 0, disabled: 1, enabled: 2 };
+
+// ---- Data loading ----
+
+async function loadUsers() {
+  const res = await directoryApi("/directory/users");
+  if (!res.ok) {
+    mainPanel.innerHTML = `<div class="empty-state">Couldn't load the directory. ${escapeHtml(res.message || "Try refreshing the page.")}</div>`;
+    return false;
+  }
+  users = res.users.map(normalizeUser);
+  return true;
 }
 
 function updateCounts() {
@@ -120,21 +203,28 @@ function renderTable() {
   }
 }
 
-function getUserHistory(userId) {
-  const radius = RADIUS_EVENTS.filter((e) => e.userId === userId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  const tacacs = TACACS_EVENTS.filter((e) => e.userId === userId).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  return { radius, tacacs };
-}
+// ---- Drawer ----
 
-function openDrawer(userId) {
+async function openDrawer(userId) {
   selectedUserId = userId;
   renderTable();
   const user = users.find((u) => u.id === userId);
   drawerUserId.textContent = user.displayName;
-  drawerBody.innerHTML = renderDrawerContent(user);
-  attachDrawerHandlers(user);
+  drawerBody.innerHTML = `<div class="demo-note">Loading history...</div>`;
   drawer.classList.add("open");
   drawerOverlay.classList.add("open");
+
+  const res = await directoryApi(`/directory/users/${encodeURIComponent(userId)}`);
+  if (!res.ok) {
+    drawerBody.innerHTML = `<div class="empty-state">Couldn't load this user's history. ${escapeHtml(res.message || "")}</div>`;
+    return;
+  }
+
+  const radius = res.radiusEvents.map(normalizeRadiusEvent);
+  const tacacs = res.tacacsEvents.map(normalizeTacacsEvent);
+
+  drawerBody.innerHTML = renderDrawerContent(user, radius, tacacs, res.auditLog || []);
+  attachDrawerHandlers(user);
 }
 
 function closeDrawer() {
@@ -144,9 +234,7 @@ function closeDrawer() {
   renderTable();
 }
 
-function renderDrawerContent(user) {
-  const { radius, tacacs } = getUserHistory(user.id);
-
+function renderDrawerContent(user, radius, tacacs, auditLog) {
   const radiusRows = radius.length === 0
     ? `<div class="demo-note">No RADIUS authentication events for this user.</div>`
     : radius
@@ -178,12 +266,22 @@ function renderDrawerContent(user) {
         )
         .join("");
 
+  const auditRows = auditLog.length === 0
+    ? `<div class="demo-note">No status changes logged yet.</div>`
+    : auditLog
+        .map(
+          (a) => `<div class="demo-note" style="margin-bottom:4px;">
+            ${formatTime(a.created_at)} — ${escapeHtml(a.actor_email)} changed ${a.field}:
+            ${escapeHtml(a.old_value || "—")} → ${escapeHtml(a.new_value || "—")}
+          </div>`
+        )
+        .join("");
+
   return `
     <div class="detail-section">
       <div class="detail-label">User</div>
       <div style="font-size:14px; font-weight:600; margin-bottom:4px;">${escapeHtml(user.displayName)}</div>
       <div style="font-size:12px; color:var(--text-dim);">${escapeHtml(user.title)} · ${escapeHtml(user.department)}</div>
-      <span class="badge badge-${statusBadgeClass(user.status)}" style="margin-top:8px;">${user.status}</span>
     </div>
 
     <div class="detail-section">
@@ -212,6 +310,14 @@ function renderDrawerContent(user) {
           <div class="detail-field-label">Last logon</div>
           <div class="detail-field-value">${formatTime(user.lastLogon)}</div>
         </div>
+        <div>
+          <div class="detail-field-label">Account status</div>
+          <select class="status-select" id="status-select">
+            <option value="enabled" ${user.status === "enabled" ? "selected" : ""}>Enabled</option>
+            <option value="disabled" ${user.status === "disabled" ? "selected" : ""}>Disabled</option>
+            <option value="locked" ${user.status === "locked" ? "selected" : ""}>Locked</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -231,11 +337,39 @@ function renderDrawerContent(user) {
       <div class="detail-label">TACACS+ — device administration (${tacacs.length})</div>
       ${tacacsRows}
     </div>
+
+    <div class="detail-section">
+      <div class="detail-label">Audit trail</div>
+      ${auditRows}
+    </div>
   `;
 }
 
 function attachDrawerHandlers(user) {
   document.getElementById("drawer-close").onclick = closeDrawer;
+
+  document.getElementById("status-select").onchange = async (e) => {
+    const newStatus = e.target.value;
+    const select = e.target;
+    select.disabled = true;
+    const res = await directoryApi(`/directory/users/${encodeURIComponent(user.id)}`, {
+      method: "PATCH",
+      body: { status: newStatus },
+    });
+    select.disabled = false;
+    if (!res.ok) {
+      window.alert(res.message || "Couldn't save that status change.");
+      select.value = user.status; // revert the dropdown to the last known-good value
+      return;
+    }
+    const updated = normalizeUser(res.user);
+    Object.assign(user, updated);
+    const idx = users.findIndex((u) => u.id === user.id);
+    if (idx !== -1) users[idx] = updated;
+    updateCounts();
+    renderTable();
+    openDrawer(user.id); // re-fetch to show the new audit log entry
+  };
 }
 
 // ---- Nav filtering ----
@@ -273,5 +407,11 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ---- Init ----
-updateCounts();
-renderTable();
+async function initDirectory() {
+  const loaded = await loadUsers();
+  if (!loaded) return;
+  updateCounts();
+  renderTable();
+}
+
+initDirectory();
