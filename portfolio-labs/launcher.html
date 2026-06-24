@@ -30,10 +30,12 @@
     .launcher-tile.tile-soc:hover { border-color: #FF5D5D; }
     .launcher-tile.tile-itsm:hover { border-color: #4D9FFF; }
     .launcher-tile.tile-crm:hover { border-color: #3DD68C; }
+    .launcher-tile.tile-directory:hover { border-color: #A78BFA; }
     .launcher-tile-mark { font-family: var(--font-mono); font-weight: 600; font-size: 14px; }
     .tile-soc .launcher-tile-mark { color: #FF8080; }
     .tile-itsm .launcher-tile-mark { color: #7FB8FF; }
     .tile-crm .launcher-tile-mark { color: #6BE0AA; }
+    .tile-directory .launcher-tile-mark { color: #C4B5FD; }
     .launcher-tile-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
     .launcher-empty { text-align: center; color: var(--text-dim); font-size: 13px; padding: var(--space-6) 0; }
     .launcher-admin-link { display: block; text-align: center; margin-top: var(--space-6); font-size: 12px; }
@@ -82,6 +84,14 @@
         desc: "Alert triage with AI-assisted analysis.",
         href: "soc-dashboard/index.html",
         tileClass: "tile-soc",
+      },
+      {
+        key: "directory_role",
+        name: "Directory",
+        mark: "◆ DIRECTORY",
+        desc: "AD identity, RADIUS/TACACS+ history, AI anomaly detection.",
+        href: "directory/index.html",
+        tileClass: "tile-directory",
       },
     ];
 
