@@ -48,6 +48,10 @@
         <span>Resolved</span>
         <span class="nav-item-count" id="count-resolved">0</span>
       </div>
+      <div class="nav-item" data-filter="breached">
+        <span style="color:var(--status-critical);">⚠ Breached SLA</span>
+        <span class="nav-item-count" id="count-breached">0</span>
+      </div>
 
       <div class="nav-section-label">Severity</div>
       <div class="nav-item" data-sev-filter="critical">
@@ -110,7 +114,7 @@
               <th>Host</th>
               <th>Source</th>
               <th>Status</th>
-              <th>Time</th>
+              <th>Age</th>
             </tr>
           </thead>
           <tbody id="alert-tbody">

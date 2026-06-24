@@ -87,6 +87,12 @@
   font-family: var(--font-sans);
 }
 
+/* ---------- Phase 5: aging indicator (mirrors ITSM's sla-breach pattern) ---------- */
+
+.age-ok { color: var(--text-dim); }
+.age-warn { color: var(--status-high); font-weight: 600; }
+.age-breach { color: var(--status-critical); font-weight: 600; }
+
 /* ---------- Phase 3: clusters view, bulk select ---------- */
 
 /* Cluster header rows are informational, not clickable — override the

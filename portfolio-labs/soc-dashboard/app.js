@@ -45,6 +45,37 @@ function formatTime(iso) {
   return d.toISOString().slice(0, 19).replace("T", " ") + "Z";
 }
 
+// ---- Aging (mirrors ITSM's SLA-breach pattern: counting up from
+// created_at rather than down to a due date, with thresholds that scale
+// by severity instead of one fixed target). ----
+
+const ALERT_AGE_THRESHOLD_HOURS = { critical: 1, high: 1, medium: 4, low: 24 };
+
+function formatAge(hours) {
+  if (hours < 1) return `${Math.round(hours * 60)}m`;
+  if (hours < 48) return `${hours.toFixed(1)}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+// Returns { label, cls } the same shape as ITSM's slaStatus, so the same
+// badge styling conventions apply. Resolved alerts never "breach" — an
+// alert closed 3 days ago isn't stale, it's just done.
+function alertAge(alert) {
+  if (alert.status === "resolved") {
+    return { label: "Resolved", cls: "age-ok" };
+  }
+  const ageHours = (Date.now() - new Date(alert.created_at).getTime()) / (1000 * 60 * 60);
+  const threshold = ALERT_AGE_THRESHOLD_HOURS[alert.severity] ?? 24;
+
+  if (ageHours > threshold) {
+    return { label: `Open ${formatAge(ageHours)} (breach)`, cls: "age-breach" };
+  }
+  if (ageHours > threshold * 0.75) {
+    return { label: `Open ${formatAge(ageHours)}`, cls: "age-warn" };
+  }
+  return { label: `Open ${formatAge(ageHours)}`, cls: "age-ok" };
+}
+
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : str;
@@ -149,6 +180,7 @@ function renderClusterView() {
 function buildAlertRow(alert) {
   const tr = document.createElement("tr");
   tr.className = alert.id === selectedAlertId ? "selected" : "";
+  const age = alertAge(alert);
   tr.innerHTML = `
     <td><input type="checkbox" class="alert-checkbox" data-alert-id="${alert.id}" ${selectedAlertIds.has(alert.id) ? "checked" : ""} /></td>
     <td><span class="badge badge-${alert.severity}">${alert.severity}</span></td>
@@ -161,7 +193,7 @@ function buildAlertRow(alert) {
     <td class="mono">${escapeHtml(alert.host)}</td>
     <td>${escapeHtml(alert.source)}</td>
     <td><span class="badge badge-${statusBadgeClass(alert.status)}">${alert.status}</span></td>
-    <td class="mono" style="color:var(--text-dim); font-size:11px;">${formatTime(alert.created_at)}</td>
+    <td class="mono ${age.cls}" style="font-size:11px;" title="${formatTime(alert.created_at)}">${age.label}</td>
   `;
   tr.querySelector(".alert-checkbox").addEventListener("click", (e) => e.stopPropagation());
   tr.querySelector(".alert-checkbox").addEventListener("change", (e) => {
@@ -204,6 +236,7 @@ function updateCounts() {
   document.getElementById("count-new").textContent = alerts.filter((a) => a.status === "new").length;
   document.getElementById("count-investigating").textContent = alerts.filter((a) => a.status === "investigating").length;
   document.getElementById("count-resolved").textContent = alerts.filter((a) => a.status === "resolved").length;
+  document.getElementById("count-breached").textContent = alerts.filter((a) => alertAge(a).cls === "age-breach").length;
   document.getElementById("count-critical").textContent = alerts.filter((a) => a.severity === "critical").length;
   document.getElementById("count-high").textContent = alerts.filter((a) => a.severity === "high").length;
   document.getElementById("count-medium").textContent = alerts.filter((a) => a.severity === "medium").length;
@@ -212,7 +245,9 @@ function updateCounts() {
 
 function getFilteredAlerts() {
   let list = [...alerts];
-  if (currentFilter !== "all") {
+  if (currentFilter === "breached") {
+    list = list.filter((a) => alertAge(a).cls === "age-breach");
+  } else if (currentFilter !== "all") {
     list = list.filter((a) => a.status === currentFilter);
   }
   if (currentSevFilter) {
@@ -771,6 +806,34 @@ async function initSocDashboard(user) {
 
   updateCounts();
   renderTable();
+
+  startAutoRefresh();
+}
+
+// Two refresh cadences, deliberately different costs:
+//  - Every 15s: pure re-render from already-loaded data. No network call,
+//    just recalculating age badges so "Open 58m" doesn't sit frozen for
+//    an hour while the tab is open. Free.
+//  - Every 60s: a real GET /alerts re-fetch, so a second analyst's changes
+//    (or a status update from another tab) actually show up without a
+//    manual reload. This is a normal D1 read, not an AI call — doesn't
+//    touch the AI proxy's rate limits at all.
+// Skips re-rendering while the drawer is open so an in-progress triage
+// read or a half-filled assignment change isn't yanked out from under
+// the user mid-interaction.
+function startAutoRefresh() {
+  setInterval(() => {
+    if (selectedAlertId) return; // don't disrupt an open drawer
+    renderTable();
+    updateCounts();
+  }, 15000);
+
+  setInterval(async () => {
+    if (selectedAlertId) return;
+    await loadAlerts();
+    renderTable();
+    updateCounts();
+  }, 60000);
 }
 
 window.initSocDashboard = initSocDashboard;
