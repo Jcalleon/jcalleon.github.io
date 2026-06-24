@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Directory — Lab by Jacob Calleon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../shared/tokens.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="app-directory">
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-mark">◆ DIRECTORY</span>
+        <span class="topbar-app-name">Identity &amp; Access</span>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-link">⛁ <a href="../launcher.html">Launcher</a></span>
+        <span class="topbar-link">⤺ <a href="https://jcalleon.github.io/#lab">Back to portfolio</a></span>
+      </div>
+    </header>
+
+    <nav class="sidebar">
+      <div class="nav-section-label">Directory</div>
+      <div class="nav-item active" data-filter="all">
+        <span>All users</span>
+        <span class="nav-item-count" id="count-all">0</span>
+      </div>
+      <div class="nav-item" data-filter="enabled">
+        <span>Enabled</span>
+        <span class="nav-item-count" id="count-enabled">0</span>
+      </div>
+      <div class="nav-item" data-filter="disabled">
+        <span>Disabled</span>
+        <span class="nav-item-count" id="count-disabled">0</span>
+      </div>
+      <div class="nav-item" data-filter="locked">
+        <span>Locked</span>
+        <span class="nav-item-count" id="count-locked">0</span>
+      </div>
+
+      <div class="nav-section-label">Department</div>
+      <div class="nav-item" data-dept-filter="Finance">
+        <span>Finance</span>
+        <span class="nav-item-count" id="count-dept-finance">0</span>
+      </div>
+      <div class="nav-item" data-dept-filter="Engineering">
+        <span>Engineering</span>
+        <span class="nav-item-count" id="count-dept-engineering">0</span>
+      </div>
+      <div class="nav-item" data-dept-filter="Marketing">
+        <span>Marketing</span>
+        <span class="nav-item-count" id="count-dept-marketing">0</span>
+      </div>
+      <div class="nav-item" data-dept-filter="Human Resources">
+        <span>Human Resources</span>
+        <span class="nav-item-count" id="count-dept-hr">0</span>
+      </div>
+      <div class="nav-item" data-dept-filter="Sales">
+        <span>Sales</span>
+        <span class="nav-item-count" id="count-dept-sales">0</span>
+      </div>
+      <div class="nav-item" data-dept-filter="IT Operations">
+        <span>IT Operations</span>
+        <span class="nav-item-count" id="count-dept-itops">0</span>
+      </div>
+
+      <div class="nav-section-label">About this lab</div>
+      <p style="font-size:12px; color:var(--text-dim); padding:0 var(--space-2); line-height:1.6;">
+        Simulated AD directory with RADIUS (network/VPN auth) and TACACS+ (device admin)
+        event history per user. Click any user to see their full access history across
+        both systems.
+      </p>
+    </nav>
+
+    <main class="main">
+      <div class="panel">
+        <div style="padding:12px 16px; border-bottom:1px solid var(--border);">
+          <input type="text" id="search-input" class="form-input" placeholder="Search by name, username, email, or department..." style="max-width:480px;" />
+        </div>
+        <table class="table" id="user-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Department</th>
+              <th>Title</th>
+              <th>MFA</th>
+              <th>Last Logon</th>
+            </tr>
+          </thead>
+          <tbody id="user-tbody">
+            <tr><td colspan="7"><div class="empty-state">Loading directory...</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <div class="drawer-overlay" id="drawer-overlay"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title" id="drawer-user-id">User</span>
+      <button class="drawer-close" id="drawer-close" aria-label="Close panel">✕</button>
+    </div>
+    <div class="drawer-body" id="drawer-body"></div>
+  </aside>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
