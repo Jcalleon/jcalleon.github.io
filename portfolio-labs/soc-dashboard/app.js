@@ -28,6 +28,7 @@ let currentUser = null;
 let currentFilter = "all";
 let currentSevFilter = null;
 let currentView = "table"; // "table" | "clusters"
+let searchQuery = ""; // free-text filter: matches host, source, title, id, mitre
 let selectedAlertId = null;
 let selectedAlertIds = new Set(); // multi-select for bulk AI dismissal
 let socAgents = []; // users with soc_role != "none", for the assignment dropdown
@@ -217,6 +218,13 @@ function getFilteredAlerts() {
   if (currentSevFilter) {
     list = list.filter((a) => a.severity === currentSevFilter);
   }
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    list = list.filter((a) =>
+      [a.host, a.source, a.title, a.id, a.mitre, a.user_context]
+        .some((field) => (field || "").toLowerCase().includes(q))
+    );
+  }
   return list.sort((a, b) => {
     const sevDiff = SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity];
     if (sevDiff !== 0) return sevDiff;
@@ -313,15 +321,15 @@ RECOMMENDED NEXT STEP: ${escapeHtml(alert.triage_next_step || "")}</div>
       <div class="detail-grid">
         <div>
           <div class="detail-field-label">Host</div>
-          <div class="detail-field-value">${escapeHtml(alert.host)}</div>
+          <div class="detail-field-value detail-field-link" data-search-value="${escapeHtml(alert.host)}" title="Click to find other alerts on this host">${escapeHtml(alert.host)}</div>
         </div>
         <div>
           <div class="detail-field-label">User / Process Context</div>
-          <div class="detail-field-value">${escapeHtml(alert.user_context)}</div>
+          <div class="detail-field-value detail-field-link" data-search-value="${escapeHtml(alert.user_context)}" title="Click to find other alerts involving this user/process">${escapeHtml(alert.user_context)}</div>
         </div>
         <div>
           <div class="detail-field-label">Source</div>
-          <div class="detail-field-value">${escapeHtml(alert.source)}</div>
+          <div class="detail-field-value detail-field-link" data-search-value="${escapeHtml(alert.source)}" title="Click to find other alerts from this source">${escapeHtml(alert.source)}</div>
         </div>
         <div>
           <div class="detail-field-label">MITRE ATT&amp;CK</div>
@@ -371,6 +379,18 @@ RECOMMENDED NEXT STEP: ${escapeHtml(alert.triage_next_step || "")}</div>
 
 function attachDrawerHandlers(alert) {
   document.getElementById("drawer-close").onclick = closeDrawer;
+
+  document.querySelectorAll(".detail-field-link").forEach((el) => {
+    el.addEventListener("click", () => {
+      const value = el.dataset.searchValue;
+      if (!value || value === "n/a") return; // not a useful pivot
+      closeDrawer();
+      const searchInput = document.getElementById("search-input");
+      if (searchInput) searchInput.value = value;
+      searchQuery = value;
+      renderTable();
+    });
+  });
 
   document.getElementById("status-select").onchange = async (e) => {
     const newStatus = e.target.value;
@@ -676,6 +696,14 @@ async function runDailyDigest() {
 // ---- Nav filtering, view toggle, bulk select, and Phase 3 buttons ----
 
 function wireNavFilters() {
+  const searchInput = document.getElementById("search-input");
+  if (searchInput) {
+    searchInput.addEventListener("input", (e) => {
+      searchQuery = e.target.value;
+      renderTable();
+    });
+  }
+
   document.querySelectorAll("[data-filter]").forEach((el) => {
     el.addEventListener("click", () => {
       currentFilter = el.dataset.filter;

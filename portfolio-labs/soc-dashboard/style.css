@@ -60,6 +60,17 @@
   color: var(--text-primary);
 }
 
+.detail-field-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--text-dim);
+}
+.detail-field-link:hover {
+  color: var(--accent-text);
+  text-decoration-color: var(--accent-text);
+}
+
 .detail-narrative {
   font-size: 13px;
   color: var(--text-secondary);
