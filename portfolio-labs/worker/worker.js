@@ -725,13 +725,17 @@ async function getAlert(id, request, env, headers) {
     `SELECT * FROM alert_audit_log WHERE alert_id = ? ORDER BY created_at DESC`
   ).bind(id).all();
 
+  const { results: notes } = await env.DB.prepare(
+    `SELECT * FROM alert_notes WHERE alert_id = ? ORDER BY created_at ASC`
+  ).bind(id).all();
+
   let assignedEmail = null;
   if (alert.assigned_to) {
     const assignee = await env.DB.prepare(`SELECT email FROM users WHERE id = ?`).bind(alert.assigned_to).first();
     assignedEmail = assignee ? assignee.email : null;
   }
 
-  return json({ alert, auditLog, assignedEmail }, 200, headers);
+  return json({ alert, auditLog, notes, assignedEmail }, 200, headers);
 }
 
 async function updateAlert(id, request, env, headers) {
@@ -811,6 +815,38 @@ async function saveTriage(id, request, env, headers) {
 
   const alert = await env.DB.prepare(`SELECT * FROM alerts WHERE id = ?`).bind(id).first();
   return json({ alert }, 200, headers);
+}
+
+// POST /alerts/:id/notes — adds an analyst investigation note. Single
+// author type (always an authenticated analyst), unlike ITSM's messages
+// which distinguish agent vs requester — that distinction doesn't apply
+// here since there's no second party on an alert.
+async function addNote(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.soc_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const noteBody = (body.body || "").trim();
+  if (!noteBody) return json({ error: "Note body is required" }, 400, headers);
+  if (noteBody.length > 4000) return json({ error: "Note is too long (max 4000 characters)" }, 400, headers);
+
+  const alert = await env.DB.prepare(`SELECT id FROM alerts WHERE id = ?`).bind(id).first();
+  if (!alert) return json({ error: "not_found" }, 404, headers);
+
+  const now = new Date().toISOString();
+  const noteId = genId("NOTE");
+  await env.DB.prepare(
+    `INSERT INTO alert_notes (id, alert_id, actor_email, body, created_at) VALUES (?, ?, ?, ?, ?)`
+  ).bind(noteId, id, user.email, noteBody, now).run();
+
+  return json({ note: { id: noteId, alert_id: id, actor_email: user.email, body: noteBody, created_at: now } }, 201, headers);
 }
 
 async function listAgents(request, env, headers) {
@@ -918,6 +954,9 @@ export default {
 
     const alertTriageMatch = path.match(/^\/alerts\/([^\/]+)\/triage$/);
     if (alertTriageMatch && request.method === "POST") return saveTriage(alertTriageMatch[1], request, env, headers);
+
+    const alertNotesMatch = path.match(/^\/alerts\/([^\/]+)\/notes$/);
+    if (alertNotesMatch && request.method === "POST") return addNote(alertNotesMatch[1], request, env, headers);
 
     const alertMatch = path.match(/^\/alerts\/([^\/]+)$/);
     if (alertMatch && request.method === "GET") return getAlert(alertMatch[1], request, env, headers);
