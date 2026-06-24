@@ -1007,6 +1007,69 @@ async function updateAdUserStatus(id, request, env, headers) {
   return json({ user: updated }, 200, headers);
 }
 
+// POST /directory/users/:id/analyze — saves an AI anomaly-analysis result
+// onto the user so it persists past the drawer closing. Mirrors SOC's
+// saveTriage exactly: the AI call itself happens client-side via the
+// existing proxy, this endpoint just persists the resulting verdict.
+async function saveAnomalyAnalysis(id, request, env, headers) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const { verdict, confidence, analysis, nextStep } = body;
+  if (!verdict || !analysis) {
+    return json({ error: "verdict and analysis are required" }, 400, headers);
+  }
+
+  const current = await env.DB.prepare(`SELECT id FROM ad_users WHERE id = ?`).bind(id).first();
+  if (!current) return json({ error: "not_found" }, 404, headers);
+
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `UPDATE ad_users SET anomaly_verdict = ?, anomaly_confidence = ?, anomaly_analysis = ?, anomaly_next_step = ?, anomaly_analyzed_at = ? WHERE id = ?`
+  ).bind(verdict, confidence || null, analysis, nextStep || null, now, id).run();
+
+  const updated = await env.DB.prepare(`SELECT * FROM ad_users WHERE id = ?`).bind(id).first();
+  updated.groups = JSON.parse(updated.groups);
+  return json({ user: updated }, 200, headers);
+}
+
+// POST /directory/users/bulk-analyze — saves AI anomaly-analysis results
+// for multiple users at once, after the frontend's single batched AI call
+// has already assessed all of them together. Mirrors SOC's
+// bulkDismissAlerts: this endpoint persists, it doesn't call the AI.
+async function bulkSaveAnomalyAnalysis(request, env, headers) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const { results } = body; // [{ userId, verdict, confidence, analysis, nextStep }, ...]
+  if (!Array.isArray(results) || results.length === 0) {
+    return json({ error: "results must be a non-empty array" }, 400, headers);
+  }
+
+  let saved = 0;
+  const now = new Date().toISOString();
+  for (const r of results) {
+    if (!r.userId || !r.verdict || !r.analysis) continue; // skip malformed entries rather than fail the whole batch
+    const current = await env.DB.prepare(`SELECT id FROM ad_users WHERE id = ?`).bind(r.userId).first();
+    if (!current) continue;
+
+    await env.DB.prepare(
+      `UPDATE ad_users SET anomaly_verdict = ?, anomaly_confidence = ?, anomaly_analysis = ?, anomaly_next_step = ?, anomaly_analyzed_at = ? WHERE id = ?`
+    ).bind(r.verdict, r.confidence || null, r.analysis, r.nextStep || null, now, r.userId).run();
+    saved++;
+  }
+
+  return json({ message: `Saved analysis for ${saved} user(s).`, saved }, 200, headers);
+}
+
 // GET /stats — aggregate dashboard data. Agent-only.
 async function getStats(request, env, headers) {
   const user = await getSessionUser(request, env);
@@ -1081,6 +1144,7 @@ export default {
 
     // ---- Directory app routes ----
     if (path === "/directory/users" && request.method === "GET") return listAdUsers(request, env, headers);
+    if (path === "/directory/users/bulk-analyze" && request.method === "POST") return bulkSaveAnomalyAnalysis(request, env, headers);
 
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
     if (ticketMatch && request.method === "GET") return getTicket(ticketMatch[1], request, env, headers);
@@ -1105,6 +1169,9 @@ export default {
     const directoryUserMatch = path.match(/^\/directory\/users\/([^\/]+)$/);
     if (directoryUserMatch && request.method === "GET") return getAdUser(directoryUserMatch[1], request, env, headers);
     if (directoryUserMatch && request.method === "PATCH") return updateAdUserStatus(directoryUserMatch[1], request, env, headers);
+
+    const directoryAnalyzeMatch = path.match(/^\/directory\/users\/([^\/]+)\/analyze$/);
+    if (directoryAnalyzeMatch && request.method === "POST") return saveAnomalyAnalysis(directoryAnalyzeMatch[1], request, env, headers);
 
     return json({ error: "not_found" }, 404, headers);
   },
