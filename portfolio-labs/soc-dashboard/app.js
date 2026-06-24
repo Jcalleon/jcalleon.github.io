@@ -27,8 +27,9 @@ let alerts = [];
 let currentUser = null;
 let currentFilter = "all";
 let currentSevFilter = null;
-let currentView = "table"; // "table" | "clusters"
+let currentView = "table"; // "table" | "clusters" | "investigate"
 let searchQuery = ""; // free-text filter: matches host, source, title, id, mitre
+let investigationPivot = null; // { field: "host"|"source"|"user_context", value: string }
 let selectedAlertId = null;
 let selectedAlertIds = new Set(); // multi-select for bulk AI dismissal
 let socAgents = []; // users with soc_role != "none", for the assignment dropdown
@@ -80,6 +81,58 @@ function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : str;
   return div.innerHTML;
+}
+
+// ---- Cross-alert investigation (Phase 6) ----
+//
+// Given a pivot identifier (a specific host, source, or user_context value),
+// finds every alert touching that value and surfaces what ELSE co-occurs
+// with it — other hosts/sources/users seen alongside it. The instinct this
+// serves: "what else happened on this host" or "what else did this vendor
+// flag", which a flat filtered table can't answer on its own — you'd have
+// to manually scan every matching row's other fields yourself.
+function buildInvestigation(pivot) {
+  const matching = alerts.filter((a) => {
+    if (pivot.field === "host") return a.host === pivot.value;
+    if (pivot.field === "source") return a.source === pivot.value;
+    if (pivot.field === "user_context") return a.user_context === pivot.value;
+    return false;
+  });
+
+  // Chronological for investigation, not severity-sorted — an analyst
+  // reconstructing what happened wants the sequence of events, not a
+  // priority queue.
+  const timeline = [...matching].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  const related = { hosts: new Set(), sources: new Set(), users: new Set() };
+  for (const a of matching) {
+    if (a.host && a.host !== "n/a" && !(pivot.field === "host" && a.host === pivot.value)) related.hosts.add(a.host);
+    if (a.source && a.source !== "n/a" && !(pivot.field === "source" && a.source === pivot.value)) related.sources.add(a.source);
+    if (a.user_context && a.user_context !== "n/a" && !(pivot.field === "user_context" && a.user_context === pivot.value)) related.users.add(a.user_context);
+  }
+
+  const severityCounts = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const a of matching) severityCounts[a.severity] = (severityCounts[a.severity] || 0) + 1;
+
+  const openCount = matching.filter((a) => a.status !== "resolved").length;
+  const breachCount = matching.filter((a) => alertAge(a).cls === "age-breach").length;
+
+  return {
+    pivot,
+    timeline,
+    related: { hosts: [...related.hosts], sources: [...related.sources], users: [...related.users] },
+    severityCounts,
+    openCount,
+    breachCount,
+  };
+}
+
+function startInvestigation(field, value) {
+  if (!value || value === "n/a") return;
+  investigationPivot = { field, value };
+  currentView = "investigate";
+  document.querySelectorAll("[data-view]").forEach((n) => n.classList.remove("active"));
+  renderTable();
 }
 
 // ---- MITRE clustering (pure grouping, no AI call) ----
@@ -174,9 +227,111 @@ function renderClusterView() {
   if (bar) bar.style.display = "none";
 }
 
-// Shared row-building logic between table view and cluster view, so a row
-// looks and behaves identically in both (same click-to-open-drawer, same
-// checkbox, same badges) rather than maintaining two near-duplicate templates.
+// Unlike cluster view, the investigation view DOES show the bulk-action
+// bar — the person asked for bulk actions to be available here, since a
+// focused "everything on this host" view is exactly where you'd want to
+// bulk-dismiss a string of related false positives at once, not just look.
+function renderInvestigationView() {
+  const investigation = buildInvestigation(investigationPivot);
+  renderInvestigationHeader(investigation);
+
+  tbody.innerHTML = "";
+  if (investigation.timeline.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No alerts found for this pivot.</div></td></tr>`;
+  } else {
+    for (const alert of investigation.timeline) {
+      tbody.appendChild(buildAlertRow(alert));
+    }
+  }
+
+  updateBulkBar();
+
+  // Hide the free-text search and digest panel while investigating — this
+  // view has its own pivot, and a shift-summary digest isn't relevant to a
+  // focused single-identifier investigation.
+  const searchInput = document.getElementById("search-input");
+  if (searchInput) searchInput.closest(".panel > div").style.display = "none";
+  const digestPanel = document.querySelector("#digest-btn")?.closest(".panel");
+  if (digestPanel) digestPanel.style.display = "none";
+}
+
+function renderInvestigationHeader(investigation) {
+  const header = document.getElementById("investigation-header");
+  if (!header) return;
+
+  const { pivot, timeline, related, severityCounts, openCount, breachCount } = investigation;
+  const fieldLabel = { host: "Host", source: "Source", user_context: "User/Process" }[pivot.field] || pivot.field;
+
+  const relatedChips = (label, values, field) =>
+    values.length === 0
+      ? ""
+      : `<div style="margin-top:10px;">
+          <span class="detail-field-label">${label}</span>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+            ${values
+              .map(
+                (v) =>
+                  `<span class="badge badge-info investigation-chip" data-pivot-field="${field}" data-pivot-value="${escapeHtml(v)}" style="cursor:pointer;">${escapeHtml(v)}</span>`
+              )
+              .join("")}
+          </div>
+        </div>`;
+
+  header.style.display = "block";
+  header.innerHTML = `
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="detail-label">Investigating ${fieldLabel}</div>
+        <div style="font-size:16px; font-weight:600; font-family:var(--font-mono);">${escapeHtml(pivot.value)}</div>
+      </div>
+      <button class="copilot-trigger" id="exit-investigation-btn" style="padding:6px 14px;">← Back to table</button>
+    </div>
+
+    <div style="display:flex; gap:20px; margin-top:14px; flex-wrap:wrap;">
+      <div><span class="detail-field-label">Total alerts</span><div style="font-family:var(--font-mono); font-size:14px;">${timeline.length}</div></div>
+      <div><span class="detail-field-label">Still open</span><div style="font-family:var(--font-mono); font-size:14px;">${openCount}</div></div>
+      <div><span class="detail-field-label">Breached SLA</span><div style="font-family:var(--font-mono); font-size:14px; color:${breachCount > 0 ? "var(--status-critical)" : "inherit"};">${breachCount}</div></div>
+      <div><span class="detail-field-label">By severity</span><div style="font-family:var(--font-mono); font-size:14px;">
+        ${["critical", "high", "medium", "low"].map((s) => (severityCounts[s] ? `${severityCounts[s]} ${s}` : null)).filter(Boolean).join(", ") || "—"}
+      </div></div>
+    </div>
+
+    ${relatedChips("Co-occurring hosts", related.hosts, "host")}
+    ${relatedChips("Co-occurring sources", related.sources, "source")}
+    ${relatedChips("Co-occurring users/processes", related.users, "user_context")}
+  `;
+
+  document.getElementById("exit-investigation-btn").onclick = () => {
+    investigationPivot = null;
+    currentView = "table";
+    document.querySelectorAll("[data-view]").forEach((n) => n.classList.remove("active"));
+    document.querySelector('[data-view="table"]')?.classList.add("active");
+    restoreHiddenPanels();
+    renderTable();
+  };
+
+  header.querySelectorAll(".investigation-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      startInvestigation(chip.dataset.pivotField, chip.dataset.pivotValue);
+    });
+  });
+}
+
+// Investigation view hides the search box and digest panel; this restores
+// them when leaving, so table/clusters view isn't missing controls.
+function restoreHiddenPanels() {
+  const searchInput = document.getElementById("search-input");
+  if (searchInput) {
+    const wrapper = searchInput.closest(".panel > div");
+    if (wrapper) wrapper.style.display = "block";
+  }
+  const digestPanel = document.querySelector("#digest-btn")?.closest(".panel");
+  if (digestPanel) digestPanel.style.display = "block";
+  const header = document.getElementById("investigation-header");
+  if (header) header.style.display = "none";
+}
+
+
 function buildAlertRow(alert) {
   const tr = document.createElement("tr");
   tr.className = alert.id === selectedAlertId ? "selected" : "";
@@ -272,6 +427,10 @@ function renderTable() {
     renderClusterView();
     return;
   }
+  if (currentView === "investigate") {
+    renderInvestigationView();
+    return;
+  }
 
   const list = getFilteredAlerts();
   tbody.innerHTML = "";
@@ -356,15 +515,15 @@ RECOMMENDED NEXT STEP: ${escapeHtml(alert.triage_next_step || "")}</div>
       <div class="detail-grid">
         <div>
           <div class="detail-field-label">Host</div>
-          <div class="detail-field-value detail-field-link" data-search-value="${escapeHtml(alert.host)}" title="Click to find other alerts on this host">${escapeHtml(alert.host)}</div>
+          <div class="detail-field-value detail-field-link" data-search-field="host" data-search-value="${escapeHtml(alert.host)}" title="Click to investigate this host">${escapeHtml(alert.host)}</div>
         </div>
         <div>
           <div class="detail-field-label">User / Process Context</div>
-          <div class="detail-field-value detail-field-link" data-search-value="${escapeHtml(alert.user_context)}" title="Click to find other alerts involving this user/process">${escapeHtml(alert.user_context)}</div>
+          <div class="detail-field-value detail-field-link" data-search-field="user_context" data-search-value="${escapeHtml(alert.user_context)}" title="Click to investigate this user/process">${escapeHtml(alert.user_context)}</div>
         </div>
         <div>
           <div class="detail-field-label">Source</div>
-          <div class="detail-field-value detail-field-link" data-search-value="${escapeHtml(alert.source)}" title="Click to find other alerts from this source">${escapeHtml(alert.source)}</div>
+          <div class="detail-field-value detail-field-link" data-search-field="source" data-search-value="${escapeHtml(alert.source)}" title="Click to investigate this source">${escapeHtml(alert.source)}</div>
         </div>
         <div>
           <div class="detail-field-label">MITRE ATT&amp;CK</div>
@@ -418,12 +577,10 @@ function attachDrawerHandlers(alert) {
   document.querySelectorAll(".detail-field-link").forEach((el) => {
     el.addEventListener("click", () => {
       const value = el.dataset.searchValue;
+      const field = el.dataset.searchField;
       if (!value || value === "n/a") return; // not a useful pivot
       closeDrawer();
-      const searchInput = document.getElementById("search-input");
-      if (searchInput) searchInput.value = value;
-      searchQuery = value;
-      renderTable();
+      startInvestigation(field, value);
     });
   });
 
@@ -762,6 +919,8 @@ function wireNavFilters() {
   document.querySelectorAll("[data-view]").forEach((el) => {
     el.addEventListener("click", () => {
       currentView = el.dataset.view;
+      investigationPivot = null; // leaving investigate mode via the sidebar clears the pivot too
+      restoreHiddenPanels();
       document.querySelectorAll("[data-view]").forEach((n) => n.classList.remove("active"));
       el.classList.add("active");
       renderTable();
