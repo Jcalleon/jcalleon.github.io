@@ -21,7 +21,7 @@
       color: var(--text-secondary); margin-bottom: var(--space-3);
     }
     .pending-row, .user-row {
-      display: flex; align-items: center; gap: var(--space-3);
+      display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
       padding: var(--space-3); border-bottom: 1px solid var(--border-soft);
     }
     .pending-row:last-child, .user-row:last-child { border-bottom: none; }
@@ -96,7 +96,7 @@
         <div class="admin-header">
           <div>
             <div class="admin-title">◆ Admin — Portfolio Labs</div>
-            <div class="admin-subtitle">Manage approvals and per-app access for SOC, ITSM, and CRM.</div>
+            <div class="admin-subtitle">Manage approvals and per-app access for SOC, ITSM, CRM, and Directory.</div>
           </div>
           <div>
             <a href="../launcher.html" style="font-size:12px; color:var(--text-secondary); margin-right:16px;">← Launcher</a>
@@ -189,6 +189,10 @@
           <div class="role-group">
             <span class="role-group-label">SOC</span>
             ${roleSelectHtml(u.id, "soc", u.soc_role, isSelf)}
+          </div>
+          <div class="role-group">
+            <span class="role-group-label">DIR</span>
+            ${roleSelectHtml(u.id, "directory", u.directory_role, isSelf)}
           </div>
           <span class="save-indicator" data-save-for="${u.id}">Saved</span>
         </div>`;
