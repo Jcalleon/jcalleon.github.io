@@ -46,6 +46,7 @@
 body.app-soc   { --accent: #FF5D5D; --accent-dim: rgba(255, 93, 93, 0.12); --accent-text: #FF8080; }
 body.app-itsm  { --accent: #4D9FFF; --accent-dim: rgba(77, 159, 255, 0.12); --accent-text: #7FB8FF; }
 body.app-crm   { --accent: #3DD68C; --accent-dim: rgba(61, 214, 140, 0.12); --accent-text: #6BE0AA; }
+body.app-directory { --accent: #A78BFA; --accent-dim: rgba(167, 139, 250, 0.12); --accent-text: #C4B5FD; }
 
 * { box-sizing: border-box; }
 
