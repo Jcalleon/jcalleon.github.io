@@ -69,8 +69,8 @@
 
       <div class="nav-section-label">About this lab</div>
       <p style="font-size:12px; color:var(--text-dim); padding:0 var(--space-2); line-height:1.6;">
-        Simulated alert feed. Click any row, then "Triage with AI" to send the alert to Claude
-        for a real classification and analyst writeup via a rate-limited API proxy.
+        Real alert queue backed by a database. Click any row, then "Triage with AI" for a
+        Claude-generated verdict and next step — saved to the alert, not lost on refresh.
       </p>
     </nav>
 
@@ -87,7 +87,9 @@
               <th>Time</th>
             </tr>
           </thead>
-          <tbody id="alert-tbody"></tbody>
+          <tbody id="alert-tbody">
+            <tr><td colspan="6"><div class="empty-state">Loading alerts...</div></td></tr>
+          </tbody>
         </table>
       </div>
     </main>
@@ -102,7 +104,6 @@
     <div class="drawer-body" id="drawer-body"></div>
   </aside>
 
-  <script src="data.js"></script>
   <script src="../shared/ai-client.js"></script>
   <script src="app.js"></script>
   <script>
@@ -112,6 +113,7 @@
       const el = document.getElementById("topbar-user");
       el.innerHTML = `<span class="topbar-user-email">${user.email}</span><button class="topbar-logout-btn" id="logout-btn">Log out</button>`;
       document.getElementById("logout-btn").onclick = doLogout;
+      initSocDashboard(user);
     })();
   </script>
 </body>
