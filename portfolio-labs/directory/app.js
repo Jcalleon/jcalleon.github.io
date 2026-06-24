@@ -93,7 +93,7 @@ const drawer = document.getElementById("drawer");
 const drawerOverlay = document.getElementById("drawer-overlay");
 const drawerBody = document.getElementById("drawer-body");
 const drawerUserId = document.getElementById("drawer-user-id");
-const mainPanel = document.querySelector(".main .panel");
+const mainPanel = document.getElementById("table-panel");
 
 function formatTime(iso) {
   if (!iso) return "—";
