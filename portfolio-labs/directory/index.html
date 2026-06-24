@@ -8,6 +8,14 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../shared/tokens.css" />
   <link rel="stylesheet" href="style.css" />
+  <script src="../shared/auth-client.js"></script>
+  <script>
+    // Fast local check, runs before body parses: bounce obviously-logged-out
+    // visitors immediately so they never see a flash of the app shell.
+    if (!getSessionToken()) {
+      window.location.replace("login.html");
+    }
+  </script>
 </head>
 <body class="app-directory">
 
@@ -18,6 +26,7 @@
         <span class="topbar-app-name">Identity &amp; Access</span>
       </div>
       <div class="topbar-right">
+        <span class="topbar-user" id="topbar-user"></span>
         <span class="topbar-link">⛁ <a href="../launcher.html">Launcher</a></span>
         <span class="topbar-link">⤺ <a href="https://jcalleon.github.io/#lab">Back to portfolio</a></span>
       </div>
@@ -120,5 +129,15 @@
 
   <script src="../shared/ai-client.js"></script>
   <script src="app.js"></script>
+  <script>
+    (async () => {
+      const user = await requireValidSessionOrRedirect("directory_role");
+      if (!user) return;
+      const el = document.getElementById("topbar-user");
+      el.innerHTML = `<span class="topbar-user-email">${user.email}</span><button class="topbar-logout-btn" id="logout-btn">Log out</button>`;
+      document.getElementById("logout-btn").onclick = doLogout;
+      initDirectory();
+    })();
+  </script>
 </body>
 </html>

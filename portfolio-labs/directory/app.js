@@ -15,7 +15,10 @@ async function directoryApi(path, { method = "GET", body } = {}) {
   try {
     const res = await fetch(`${WORKER_URL}${path}`, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Session-Token": getSessionToken(),
+      },
       body: body ? JSON.stringify(body) : undefined,
     });
     let data = {};
@@ -635,4 +638,4 @@ async function initDirectory() {
   renderTable();
 }
 
-initDirectory();
+window.initDirectory = initDirectory;
