@@ -556,6 +556,15 @@ RECOMMENDED NEXT STEP: ${escapeHtml(alert.triage_next_step || "")}</div>
     </div>
 
     <div class="detail-section">
+      <div class="detail-label">Investigation notes</div>
+      <div id="notes-list" style="margin-bottom:10px;">
+        <div class="demo-note">Loading...</div>
+      </div>
+      <textarea id="note-input" class="form-textarea" placeholder="Add a note — what you found, what you ruled out, next steps..." style="width:100%; min-height:60px;"></textarea>
+      <button class="copilot-trigger" id="add-note-btn" style="margin-top:8px; padding:6px 14px;">Add note</button>
+    </div>
+
+    <div class="detail-section">
       <div class="detail-label">AI triage</div>
       <button class="copilot-trigger" id="triage-btn">✦ ${alert.triage_verdict ? "Re-triage with AI" : "Triage with AI"}</button>
       <div class="demo-note">Live call to Claude via a rate-limited proxy. Capped per visitor/day. Results are saved to this alert.</div>
@@ -624,6 +633,14 @@ function attachDrawerHandlers(alert) {
 
   document.getElementById("triage-btn").onclick = () => runTriage(alert);
 
+  document.getElementById("add-note-btn").onclick = () => submitNote(alert.id);
+  document.getElementById("note-input").addEventListener("keydown", (e) => {
+    // Cmd/Ctrl+Enter submits, matching the common "quick submit" convention
+    // for multi-line text areas without stealing plain Enter (which should
+    // still insert a newline for a multi-line note).
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submitNote(alert.id);
+  });
+
   refreshAuditLog(alert.id);
 }
 
@@ -634,17 +651,63 @@ function alert_failedUpdate(res, selectEl, revertValue) {
   selectEl.value = revertValue;
 }
 
-async function refreshAuditLog(alertId) {
-  const section = document.getElementById("audit-log-section");
-  if (!section) return; // drawer may have closed while this was in flight
+async function submitNote(alertId) {
+  const input = document.getElementById("note-input");
+  const btn = document.getElementById("add-note-btn");
+  if (!input) return;
+  const body = input.value.trim();
+  if (!body) return;
 
-  const res = await authApi(`/alerts/${encodeURIComponent(alertId)}`, { authed: true });
-  if (!res.ok || !res.auditLog || res.auditLog.length === 0) {
-    section.innerHTML = `<div class="demo-note">No changes logged yet.</div>`;
+  btn.disabled = true;
+  const res = await authApi(`/alerts/${encodeURIComponent(alertId)}/notes`, {
+    method: "POST",
+    authed: true,
+    body: { body },
+  });
+  btn.disabled = false;
+
+  if (!res.ok) {
+    window.alert(res.message || "Couldn't save that note.");
     return;
   }
 
-  section.innerHTML = res.auditLog
+  input.value = "";
+  refreshAuditLog(alertId); // single fetch repopulates both notes and audit log
+}
+
+// Fetches the alert once and populates both the notes list and the audit
+// log from the same response — these used to be two separate concerns,
+// but since GET /alerts/:id already returns both, one fetch covers both
+// sections instead of firing two redundant requests.
+async function refreshAuditLog(alertId) {
+  const auditSection = document.getElementById("audit-log-section");
+  const notesSection = document.getElementById("notes-list");
+  if (!auditSection && !notesSection) return; // drawer may have closed while this was in flight
+
+  const res = await authApi(`/alerts/${encodeURIComponent(alertId)}`, { authed: true });
+
+  if (notesSection) {
+    if (!res.ok || !res.notes || res.notes.length === 0) {
+      notesSection.innerHTML = `<div class="demo-note">No notes yet.</div>`;
+    } else {
+      notesSection.innerHTML = res.notes
+        .map(
+          (n) => `<div class="note-entry">
+            <div class="note-entry-meta">${escapeHtml(n.actor_email)} — ${formatTime(n.created_at)}</div>
+            <div class="note-entry-body">${escapeHtml(n.body)}</div>
+          </div>`
+        )
+        .join("");
+    }
+  }
+
+  if (!auditSection) return;
+  if (!res.ok || !res.auditLog || res.auditLog.length === 0) {
+    auditSection.innerHTML = `<div class="demo-note">No changes logged yet.</div>`;
+    return;
+  }
+
+  auditSection.innerHTML = res.auditLog
     .map((entry) => {
       const fieldLabel = entry.field === "assigned_to" ? "assignment" : entry.field;
       return `<div class="demo-note" style="margin-bottom:4px;">
