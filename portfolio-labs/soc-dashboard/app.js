@@ -820,6 +820,32 @@ RECOMMENDED NEXT STEP: Pivot on the source host in your EDR timeline and correla
   `;
 }
 
+// ---- Manual bulk status update (human-driven, no AI involved) ----
+//
+// Distinct from the AI dismissal path below: this is for alerts you've
+// already reviewed yourself and just want to move in bulk — the direct
+// equivalent of ITSM's bulk "Mark as..." dropdown.
+async function runBulkStatusUpdate(newStatus) {
+  const ids = Array.from(selectedAlertIds);
+  if (ids.length === 0) return;
+
+  const res = await authApi("/alerts/bulk-update", {
+    method: "POST",
+    authed: true,
+    body: { alertIds: ids, field: "status", value: newStatus },
+  });
+
+  if (!res.ok) {
+    window.alert(res.message || "Couldn't apply that bulk update.");
+    return;
+  }
+
+  selectedAlertIds.clear();
+  await loadAlerts();
+  renderTable();
+  updateCounts();
+}
+
 // ---- Bulk false-positive dismissal (one batched AI call, not one per alert) ----
 
 async function runBulkDismiss() {
@@ -997,6 +1023,16 @@ function wireNavFilters() {
       if (e.target.checked) list.forEach((a) => selectedAlertIds.add(a.id));
       else list.forEach((a) => selectedAlertIds.delete(a.id));
       renderTable();
+    });
+  }
+
+  const bulkStatusSelect = document.getElementById("bulk-status-select");
+  if (bulkStatusSelect) {
+    bulkStatusSelect.addEventListener("change", async (e) => {
+      const value = e.target.value;
+      if (!value) return;
+      await runBulkStatusUpdate(value);
+      e.target.value = ""; // reset to placeholder after firing, matching ITSM's pattern
     });
   }
 
