@@ -257,9 +257,10 @@ async function signup(request, env, headers) {
   const isFirstUser = userCount.count === 0;
 
   await env.DB.prepare(
-    `INSERT INTO users (id, email, password_hash, salt, role, crm_role, soc_role, approved, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, email, password_hash, salt, role, crm_role, soc_role, directory_role, approved, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id, email, hash, salt,
+    isFirstUser ? "admin" : "agent",
     isFirstUser ? "admin" : "agent",
     isFirstUser ? "admin" : "agent",
     isFirstUser ? "admin" : "agent",
@@ -271,7 +272,7 @@ async function signup(request, env, headers) {
     await sendNotificationEmail(
       env,
       "New signup pending approval",
-      `${email} just signed up and is waiting for approval. One approval grants access to ITSM, CRM, and SOC.\n\nApprove them from the admin panel: https://jcalleon.github.io/portfolio-labs/itsm-helpdesk/admin.html`
+      `${email} just signed up and is waiting for approval. One approval grants access to ITSM, CRM, SOC, and Directory.\n\nApprove them from the admin panel: https://jcalleon.github.io/portfolio-labs/itsm-helpdesk/admin.html`
     );
   }
 
@@ -318,6 +319,7 @@ async function login(request, env, headers) {
       itsm_role: user.role,
       crm_role: user.crm_role,
       soc_role: user.soc_role,
+      directory_role: user.directory_role,
       is_superadmin: isSuperadmin(user),
     },
   }, 200, headers);
@@ -341,6 +343,7 @@ async function me(request, env, headers) {
       itsm_role: user.role,
       crm_role: user.crm_role,
       soc_role: user.soc_role,
+      directory_role: user.directory_role,
       is_superadmin: isSuperadmin(user),
     },
   }, 200, headers);
@@ -353,7 +356,7 @@ async function listPending(request, env, headers) {
   if (!isSuperadmin(user)) return json({ error: "unauthorized" }, 401, headers);
 
   const { results } = await env.DB.prepare(
-    `SELECT id, email, role, crm_role, soc_role, created_at FROM users WHERE approved = 0 ORDER BY created_at ASC`
+    `SELECT id, email, role, crm_role, soc_role, directory_role, created_at FROM users WHERE approved = 0 ORDER BY created_at ASC`
   ).all();
   return json({ pending: results }, 200, headers);
 }
@@ -364,7 +367,7 @@ async function listUsers(request, env, headers) {
   if (!isSuperadmin(user)) return json({ error: "unauthorized" }, 401, headers);
 
   const { results } = await env.DB.prepare(
-    `SELECT id, email, role, crm_role, soc_role, approved, created_at FROM users ORDER BY created_at DESC`
+    `SELECT id, email, role, crm_role, soc_role, directory_role, approved, created_at FROM users ORDER BY created_at DESC`
   ).all();
   return json({ users: results }, 200, headers);
 }
@@ -385,7 +388,7 @@ async function updateUser(id, request, env, headers) {
     return json({ error: "Invalid JSON body" }, 400, headers);
   }
 
-  const ROLE_COLUMN_BY_APP = { itsm: "role", crm: "crm_role", soc: "soc_role" };
+  const ROLE_COLUMN_BY_APP = { itsm: "role", crm: "crm_role", soc: "soc_role", directory: "directory_role" };
   const VALID_ROLES = ["admin", "agent", "none"];
 
   // The superadmin account itself can't be rejected or demoted through this
@@ -927,14 +930,13 @@ async function listSocAgents(request, env, headers) {
 // ============================================================
 // DIRECTORY APP (AD users + RADIUS/TACACS+ history)
 // ============================================================
-// Phase B note: these routes are deliberately OPEN (no auth check) right
-// now, by explicit choice — Phase D wires this app into the same
-// centralized auth as SOC/ITSM/CRM (adding a directory_role column and
-// gating these routes the same way SOC's are gated on soc_role). Until
-// then, calling getSessionUser here and 401-ing on no session would break
-// the app outright, since its frontend doesn't send a session token yet.
+// Phase D: now gated on directory_role, same pattern as SOC's soc_role.
 
 async function listAdUsers(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
   const { results } = await env.DB.prepare(
     `SELECT * FROM ad_users ORDER BY
        CASE status WHEN 'locked' THEN 0 WHEN 'disabled' THEN 1 ELSE 2 END,
@@ -948,6 +950,10 @@ async function listAdUsers(request, env, headers) {
 }
 
 async function getAdUser(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
   const adUser = await env.DB.prepare(`SELECT * FROM ad_users WHERE id = ?`).bind(id).first();
   if (!adUser) return json({ error: "not_found" }, 404, headers);
   adUser.groups = JSON.parse(adUser.groups);
@@ -970,13 +976,9 @@ async function getAdUser(id, request, env, headers) {
 // PATCH /directory/users/:id — change account status (enabled/disabled/
 // locked). Mirrors updateAlert's diff-and-audit-log pattern.
 async function updateAdUserStatus(id, request, env, headers) {
-  // Soft lookup: attribute to the real logged-in user if a session exists,
-  // otherwise fall back to a clearly-labeled placeholder. Phase B's
-  // frontend doesn't send a session token at all yet, so this can't be a
-  // hard requirement without breaking the app — Phase D tightens this to
-  // a real requirement once the app is wired into centralized auth.
-  const sessionUser = await getSessionUser(request, env);
-  const actorEmail = sessionUser ? sessionUser.email : "unauthenticated (pre-auth-integration demo)";
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
 
   let body;
   try {
@@ -1000,7 +1002,7 @@ async function updateAdUserStatus(id, request, env, headers) {
 
   await env.DB.prepare(
     `INSERT INTO directory_audit_log (id, user_id, actor_email, field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).bind(genId("DAUD"), id, actorEmail, "status", current.status, status, new Date().toISOString()).run();
+  ).bind(genId("DAUD"), id, user.email, "status", current.status, status, new Date().toISOString()).run();
 
   const updated = await env.DB.prepare(`SELECT * FROM ad_users WHERE id = ?`).bind(id).first();
   updated.groups = JSON.parse(updated.groups);
@@ -1012,6 +1014,10 @@ async function updateAdUserStatus(id, request, env, headers) {
 // saveTriage exactly: the AI call itself happens client-side via the
 // existing proxy, this endpoint just persists the resulting verdict.
 async function saveAnomalyAnalysis(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
   let body;
   try {
     body = await request.json();
@@ -1042,6 +1048,10 @@ async function saveAnomalyAnalysis(id, request, env, headers) {
 // has already assessed all of them together. Mirrors SOC's
 // bulkDismissAlerts: this endpoint persists, it doesn't call the AI.
 async function bulkSaveAnomalyAnalysis(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
   let body;
   try {
     body = await request.json();
