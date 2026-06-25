@@ -1281,6 +1281,79 @@ async function removeGroupMember(groupId, userId, request, env, headers) {
   return json({ message: "Member removed" }, 200, headers);
 }
 
+// ============================================================
+// MACHINES (Phase E4)
+// ============================================================
+
+// GET /directory/machines — list all machines.
+async function listMachines(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  const { results } = await env.DB.prepare(`SELECT * FROM machines ORDER BY type ASC, hostname ASC`).all();
+  return json({ machines: results }, 200, headers);
+}
+
+// GET /directory/machines/:id — a single machine plus every RADIUS event
+// where it was the NAS and every TACACS+ event where it was the device —
+// the access-history mirror of getAdUser, but from the asset's side
+// instead of the person's side: "who accessed this," not "what did this
+// person access."
+async function getMachine(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  const machine = await env.DB.prepare(`SELECT * FROM machines WHERE id = ?`).bind(id).first();
+  if (!machine) return json({ error: "not_found" }, 404, headers);
+
+  const { results: radiusEvents } = await env.DB.prepare(
+    `SELECT r.*, u.display_name as user_display_name FROM radius_events r
+     LEFT JOIN ad_users u ON u.id = r.user_id
+     WHERE r.nas = ? ORDER BY r.timestamp DESC`
+  ).bind(machine.hostname).all();
+
+  const { results: tacacsEvents } = await env.DB.prepare(
+    `SELECT t.*, u.display_name as user_display_name FROM tacacs_events t
+     LEFT JOIN ad_users u ON u.id = t.user_id
+     WHERE t.device = ? ORDER BY t.timestamp DESC`
+  ).bind(machine.hostname).all();
+
+  return json({ machine, radiusEvents, tacacsEvents }, 200, headers);
+}
+
+// POST /directory/machines/:id/analyze — saves an AI anomaly-analysis
+// result onto the machine. Mirrors saveAnomalyAnalysis exactly.
+async function saveMachineAnalysis(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const { verdict, confidence, analysis, nextStep } = body;
+  if (!verdict || !analysis) {
+    return json({ error: "verdict and analysis are required" }, 400, headers);
+  }
+
+  const current = await env.DB.prepare(`SELECT id FROM machines WHERE id = ?`).bind(id).first();
+  if (!current) return json({ error: "not_found" }, 404, headers);
+
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `UPDATE machines SET anomaly_verdict = ?, anomaly_confidence = ?, anomaly_analysis = ?, anomaly_next_step = ?, anomaly_analyzed_at = ? WHERE id = ?`
+  ).bind(verdict, confidence || null, analysis, nextStep || null, now, id).run();
+
+  const updated = await env.DB.prepare(`SELECT * FROM machines WHERE id = ?`).bind(id).first();
+  return json({ machine: updated }, 200, headers);
+}
+
 // Generates a username from a display name the same way the seed data's
 // usernames look (e.g. "Jane Doe" -> "jdoe"... but the existing convention
 // is actually "first initial + last name" with NO separator for regular
@@ -1450,6 +1523,7 @@ export default {
     if (path === "/directory/users/bulk-analyze" && request.method === "POST") return bulkSaveAnomalyAnalysis(request, env, headers);
     if (path === "/directory/groups" && request.method === "GET") return listGroups(request, env, headers);
     if (path === "/directory/groups" && request.method === "POST") return createGroup(request, env, headers);
+    if (path === "/directory/machines" && request.method === "GET") return listMachines(request, env, headers);
 
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
     if (ticketMatch && request.method === "GET") return getTicket(ticketMatch[1], request, env, headers);
@@ -1488,6 +1562,12 @@ export default {
     if (groupMatch && request.method === "GET") return getGroup(groupMatch[1], request, env, headers);
     if (groupMatch && request.method === "PATCH") return updateGroup(groupMatch[1], request, env, headers);
     if (groupMatch && request.method === "DELETE") return deleteGroup(groupMatch[1], request, env, headers);
+
+    const machineAnalyzeMatch = path.match(/^\/directory\/machines\/([^\/]+)\/analyze$/);
+    if (machineAnalyzeMatch && request.method === "POST") return saveMachineAnalysis(machineAnalyzeMatch[1], request, env, headers);
+
+    const machineMatch = path.match(/^\/directory\/machines\/([^\/]+)$/);
+    if (machineMatch && request.method === "GET") return getMachine(machineMatch[1], request, env, headers);
 
     return json({ error: "not_found" }, 404, headers);
   },
