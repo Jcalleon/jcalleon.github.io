@@ -41,6 +41,9 @@
       <div class="nav-item" data-view="groups">
         <span>Groups</span>
       </div>
+      <div class="nav-item" data-view="machines">
+        <span>Machines</span>
+      </div>
 
       <div class="nav-section-label">Directory</div>
       <div class="nav-item active" data-filter="all">
@@ -118,6 +121,30 @@
             </tr>
           </thead>
           <tbody id="groups-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="panel" id="machines-panel" style="display:none; margin-bottom:16px; padding:14px 16px;">
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <button class="copilot-trigger" id="scan-machines-btn">✦ Scan all machines for anomalies</button>
+          <span class="demo-note" style="margin:0;">One batched AI call assesses every machine's access history at once.</span>
+        </div>
+        <div id="scan-machines-result" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="panel" id="machines-table-panel" style="display:none;">
+        <div style="padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; color:var(--text-secondary);">
+          Machines
+        </div>
+        <table class="table" id="machines-table">
+          <thead>
+            <tr>
+              <th>Hostname</th>
+              <th>Type</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody id="machines-tbody"></tbody>
         </table>
       </div>
 

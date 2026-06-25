@@ -84,14 +84,31 @@ function normalizeTacacsEvent(e) {
   };
 }
 
+function normalizeMachine(m) {
+  return {
+    id: m.id,
+    hostname: m.hostname,
+    type: m.type,
+    description: m.description,
+    created: m.created_at,
+    anomalyVerdict: m.anomaly_verdict,
+    anomalyConfidence: m.anomaly_confidence,
+    anomalyAnalysis: m.anomaly_analysis,
+    anomalyNextStep: m.anomaly_next_step,
+    anomalyAnalyzedAt: m.anomaly_analyzed_at,
+  };
+}
+
 let users = [];
 let currentFilter = "all";
 let currentDeptFilter = null;
 let searchQuery = "";
 let selectedUserId = null;
-let currentView = "users"; // "users" | "groups"
+let currentView = "users"; // "users" | "groups" | "machines"
 let groups = [];
+let machines = [];
 let selectedGroupId = null; // used to distinguish a group drawer from a user drawer, since both reuse #drawer
+let selectedMachineId = null; // same idea, for the machine drawer
 
 const tbody = document.getElementById("user-tbody");
 const drawer = document.getElementById("drawer");
@@ -151,6 +168,13 @@ async function loadGroups() {
   return true;
 }
 
+async function loadMachines() {
+  const res = await directoryApi("/directory/machines");
+  if (!res.ok) return false;
+  machines = res.machines.map(normalizeMachine);
+  return true;
+}
+
 // ---- View switching (Phase E3) ----
 
 function switchView(view) {
@@ -158,21 +182,32 @@ function switchView(view) {
   document.querySelectorAll("[data-view]").forEach((n) => n.classList.remove("active"));
   document.querySelector(`[data-view="${view}"]`)?.classList.add("active");
 
-  const groupsPanel = document.getElementById("groups-panel");
-  const tablePanel = document.getElementById("table-panel");
-  const scanAllPanel = document.getElementById("scan-all-btn")?.closest(".panel");
+  const panels = {
+    "scan-all-panel": document.getElementById("scan-all-btn")?.closest(".panel"),
+    "table-panel": document.getElementById("table-panel"),
+    "groups-panel": document.getElementById("groups-panel"),
+    "scan-machines-panel": document.getElementById("machines-panel"),
+    "machines-table-panel": document.getElementById("machines-table-panel"),
+  };
 
-  if (view === "groups") {
-    if (groupsPanel) groupsPanel.style.display = "block";
-    if (tablePanel) tablePanel.style.display = "none";
-    if (scanAllPanel) scanAllPanel.style.display = "none";
-    renderGroupsTable();
-  } else {
-    if (groupsPanel) groupsPanel.style.display = "none";
-    if (tablePanel) tablePanel.style.display = "block";
-    if (scanAllPanel) scanAllPanel.style.display = "block";
-    renderTable();
+  // Each view shows exactly the panels relevant to it — listed explicitly
+  // per view rather than toggled with booleans, so adding a 4th view later
+  // means adding one more array, not threading another condition through
+  // every existing branch.
+  const visibleByView = {
+    users: ["scan-all-panel", "table-panel"],
+    groups: ["groups-panel"],
+    machines: ["scan-machines-panel", "machines-table-panel"],
+  };
+  const visible = visibleByView[view] || [];
+
+  for (const [key, el] of Object.entries(panels)) {
+    if (el) el.style.display = visible.includes(key) ? "block" : "none";
   }
+
+  if (view === "groups") renderGroupsTable();
+  else if (view === "machines") renderMachinesTable();
+  else renderTable();
 }
 
 function renderGroupsTable() {
@@ -196,6 +231,281 @@ function renderGroupsTable() {
     tr.addEventListener("click", () => openGroupDrawer(group.id));
     tbody.appendChild(tr);
   }
+}
+
+// ---- Machines (Phase E4) ----
+
+const MACHINE_TYPE_LABELS = {
+  workstation: "Workstation",
+  server: "Server",
+  network_device: "Network device",
+  auth_infrastructure: "Auth infrastructure",
+};
+
+function renderMachinesTable() {
+  const tbody = document.getElementById("machines-tbody");
+  if (!tbody) return;
+
+  if (machines.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state">No machines yet.</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = "";
+  for (const machine of machines) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(machine.hostname)}${machine.anomalyVerdict && machine.anomalyVerdict !== "Normal Activity" ? " · ⚠ flagged" : ""}</td>
+      <td>${escapeHtml(MACHINE_TYPE_LABELS[machine.type] || machine.type)}</td>
+      <td style="color:var(--text-dim); font-size:12px;">${escapeHtml(machine.description || "—")}</td>
+    `;
+    tr.addEventListener("click", () => openMachineDrawer(machine.id));
+    tbody.appendChild(tr);
+  }
+}
+
+async function openMachineDrawer(machineId) {
+  selectedMachineId = machineId;
+  const machine = machines.find((m) => m.id === machineId);
+  drawerUserId.textContent = machine.hostname;
+  drawerBody.innerHTML = `<div class="demo-note">Loading access history...</div>`;
+  drawer.classList.add("open");
+  drawerOverlay.classList.add("open");
+
+  const res = await directoryApi(`/directory/machines/${encodeURIComponent(machineId)}`);
+  if (!res.ok) {
+    drawerBody.innerHTML = `<div class="empty-state">Couldn't load this machine. ${escapeHtml(res.message || "")}</div>`;
+    return;
+  }
+
+  drawerBody.innerHTML = renderMachineDrawerContent(machine, res.radiusEvents, res.tacacsEvents);
+  attachMachineDrawerHandlers(machine, res.radiusEvents, res.tacacsEvents);
+}
+
+function renderMachineDrawerContent(machine, radiusEvents, tacacsEvents) {
+  const savedAnalysis = machine.anomalyVerdict
+    ? `<div class="copilot-output">VERDICT: ${escapeHtml(machine.anomalyVerdict)}
+CONFIDENCE: ${escapeHtml(machine.anomalyConfidence || "—")}
+
+ANALYSIS: ${escapeHtml(machine.anomalyAnalysis || "")}
+
+RECOMMENDED NEXT STEP: ${escapeHtml(machine.anomalyNextStep || "")}</div>
+       <div class="demo-note">Analyzed ${machine.anomalyAnalyzedAt ? formatTime(machine.anomalyAnalyzedAt) : ""} — saved to this machine.</div>`
+    : "";
+
+  const radiusRows = radiusEvents.length === 0
+    ? `<div class="demo-note">No RADIUS events through this device.</div>`
+    : radiusEvents
+        .map(
+          (e) => `<div class="history-entry ${e.result === "reject" ? "history-entry-reject" : ""}">
+            <div class="history-entry-top">
+              <span class="badge badge-${e.result === "accept" ? "success" : "critical"}">${e.result}</span>
+              <span class="mono" style="font-size:11px; color:var(--text-dim);">${formatTime(e.timestamp)}</span>
+            </div>
+            <div class="history-entry-detail">${escapeHtml(e.user_display_name || e.user_id)} (${escapeHtml(e.user_id)}) · ${escapeHtml(e.auth_type)} · ${escapeHtml(e.source_ip)}</div>
+            ${e.reject_reason ? `<div class="history-entry-reason">${escapeHtml(e.reject_reason.replace(/_/g, " "))}</div>` : ""}
+          </div>`
+        )
+        .join("");
+
+  const tacacsRows = tacacsEvents.length === 0
+    ? `<div class="demo-note">No TACACS+ device-admin events for this machine.</div>`
+    : tacacsEvents
+        .map(
+          (e) => `<div class="history-entry ${e.result === "reject" ? "history-entry-reject" : ""}">
+            <div class="history-entry-top">
+              <span class="badge badge-${e.result === "accept" ? "success" : "critical"}">${e.result}</span>
+              <span class="mono" style="font-size:11px; color:var(--text-dim);">${formatTime(e.timestamp)}</span>
+            </div>
+            <div class="history-entry-detail">${escapeHtml(e.user_display_name || e.user_id)} (${escapeHtml(e.user_id)}) · privilege level ${e.privilege_level}</div>
+            ${e.command ? `<div class="history-entry-command mono">$ ${escapeHtml(e.command)}</div>` : ""}
+            ${e.reject_reason ? `<div class="history-entry-reason">${escapeHtml(e.reject_reason.replace(/_/g, " "))}</div>` : ""}
+          </div>`
+        )
+        .join("");
+
+  return `
+    <div class="detail-section">
+      <div class="detail-label">Machine</div>
+      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">${escapeHtml(machine.hostname)}</div>
+      <div style="font-size:12px; color:var(--text-dim);">${escapeHtml(MACHINE_TYPE_LABELS[machine.type] || machine.type)} — ${escapeHtml(machine.description || "No description.")}</div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-label">RADIUS access (${radiusEvents.length})</div>
+      ${radiusRows}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-label">TACACS+ access (${tacacsEvents.length})</div>
+      ${tacacsRows}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-label">AI anomaly analysis</div>
+      <button class="copilot-trigger" id="analyze-machine-btn">✦ ${machine.anomalyVerdict ? "Re-analyze access patterns" : "Analyze access patterns"}</button>
+      <div class="demo-note">Live call to Claude via a rate-limited proxy. Capped per visitor/day. Results are saved to this machine.</div>
+      <div id="machine-analysis-result" style="margin-top:12px;">${savedAnalysis}</div>
+    </div>
+  `;
+}
+
+function attachMachineDrawerHandlers(machine, radiusEvents, tacacsEvents) {
+  document.getElementById("drawer-close").onclick = closeDrawer;
+  document.getElementById("analyze-machine-btn").onclick = () => runMachineAnalysis(machine, radiusEvents, tacacsEvents);
+}
+
+async function runMachineAnalysis(machine, radiusEvents, tacacsEvents) {
+  const btn = document.getElementById("analyze-machine-btn");
+  const resultEl = document.getElementById("machine-analysis-result");
+
+  btn.disabled = true;
+  resultEl.innerHTML = `<div class="copilot-loading">
+    <span class="copilot-dot"></span><span class="copilot-dot"></span><span class="copilot-dot"></span>
+    Analyzing access patterns...
+  </div>`;
+
+  const system = `You are a security analyst's AI co-pilot embedded in an identity & access console. You will be given a single network device or piece of auth infrastructure, and every RADIUS or TACACS+ event recorded against it. Decide whether the pattern of WHO has been accessing this device looks normal, or shows signs of misuse — unexpected users, privilege-level mismatches, repeated rejected attempts, or access from accounts with no apparent business reason to touch this device.
+
+Respond in this exact format, plain text, no markdown headers:
+
+VERDICT: [Normal Activity / Needs Review / Likely Compromised]
+CONFIDENCE: [Low/Medium/High]
+
+ANALYSIS: 2-3 sentences explaining the reasoning, referencing the specific events given.
+
+RECOMMENDED NEXT STEP: One concrete action.
+
+Be specific to the actual events provided. Do not be generic. Keep total response under 150 words.`;
+
+  const prompt = `Machine: ${machine.hostname}
+Type: ${MACHINE_TYPE_LABELS[machine.type] || machine.type}
+Description: ${machine.description || "none"}
+
+RADIUS events (most recent first):
+${radiusEvents.map((e) => `${e.timestamp} — ${e.user_id} (${e.user_display_name || "unknown"}) — ${e.result} via ${e.auth_type} from ${e.source_ip}${e.reject_reason ? " — " + e.reject_reason : ""}`).join("\n") || "none"}
+
+TACACS+ events (most recent first):
+${tacacsEvents.map((e) => `${e.timestamp} — ${e.user_id} (${e.user_display_name || "unknown"}) — ${e.result} at privilege level ${e.privilege_level}${e.command ? " — ran: " + e.command : ""}${e.reject_reason ? " — " + e.reject_reason : ""}`).join("\n") || "none"}`;
+
+  const res = await callAI({ app: "directory", system, prompt });
+  btn.disabled = false;
+
+  if (!res.ok) {
+    resultEl.innerHTML = `<div class="copilot-error">${escapeHtml(res.message || "Demo limit reached.")}</div>`;
+    return;
+  }
+
+  resultEl.innerHTML = `<div class="copilot-output">${escapeHtml(res.text)}</div>`;
+
+  const parsed = parseAnalysisResponse(res.text); // same parser used for users — identical response format
+  if (parsed) {
+    const saveRes = await directoryApi(`/directory/machines/${encodeURIComponent(machine.id)}/analyze`, {
+      method: "POST",
+      body: parsed,
+    });
+    if (saveRes.ok) {
+      const updated = normalizeMachine(saveRes.machine);
+      Object.assign(machine, updated);
+      const idx = machines.findIndex((m) => m.id === machine.id);
+      if (idx !== -1) machines[idx] = updated;
+      btn.textContent = "✦ Re-analyze access patterns";
+      resultEl.innerHTML = `<div class="copilot-output">${escapeHtml(res.text)}</div>
+        <div class="demo-note">Analyzed just now — saved to this machine.</div>`;
+    }
+  }
+}
+
+async function runScanMachines() {
+  const btn = document.getElementById("scan-machines-btn");
+  const resultEl = document.getElementById("scan-machines-result");
+
+  btn.disabled = true;
+  resultEl.innerHTML = `<div class="copilot-loading">
+    <span class="copilot-dot"></span><span class="copilot-dot"></span><span class="copilot-dot"></span>
+    Scanning ${machines.length} machines for anomalies...
+  </div>`;
+
+  const histories = await Promise.all(
+    machines.map(async (m) => {
+      const res = await directoryApi(`/directory/machines/${encodeURIComponent(m.id)}`);
+      if (!res.ok) return { machine: m, radiusEvents: [], tacacsEvents: [] };
+      return { machine: m, radiusEvents: res.radiusEvents, tacacsEvents: res.tacacsEvents };
+    })
+  );
+
+  const system = `You are a security analyst's AI co-pilot embedded in an identity & access console. You will be given a batch of machines, each with every RADIUS/TACACS+ event recorded against them. For EACH machine, decide if the pattern of who has been accessing it looks normal, needs review, or looks like likely misuse.
+
+Respond with one line per machine, in EXACTLY this format, no other text:
+<hostname>: NORMAL | <one short reason>
+<hostname>: NEEDS_REVIEW | <one short reason>
+<hostname>: LIKELY_COMPROMISED | <one short reason>
+
+One line per machine given, nothing else.`;
+
+  const prompt = histories
+    .map(
+      ({ machine, radiusEvents, tacacsEvents }) => `Machine: ${machine.hostname} (${MACHINE_TYPE_LABELS[machine.type] || machine.type})
+RADIUS: ${radiusEvents.map((e) => `${e.user_id}:${e.result}${e.reject_reason ? "(" + e.reject_reason + ")" : ""}`).join(", ") || "none"}
+TACACS+: ${tacacsEvents.map((e) => `${e.user_id}:${e.result}${e.reject_reason ? "(" + e.reject_reason + ")" : ""}`).join(", ") || "none"}`
+    )
+    .join("\n\n---\n\n");
+
+  const res = await callAI({ app: "directory", system, prompt });
+  btn.disabled = false;
+
+  if (!res.ok) {
+    resultEl.innerHTML = `<div class="copilot-error">${escapeHtml(res.message || "Demo limit reached — couldn't run the batch scan.")}</div>`;
+    return;
+  }
+
+  const decisions = parseScanMachinesResponse(res.text, machines.map((m) => m.hostname));
+  const flagged = decisions.filter((d) => d.verdict !== "NORMAL");
+
+  if (decisions.length === 0) {
+    resultEl.innerHTML = `<div class="copilot-error">Couldn't parse the scan results. Try again.</div>`;
+    return;
+  }
+
+  const VERDICT_LABELS = { NORMAL: "Normal Activity", NEEDS_REVIEW: "Needs Review", LIKELY_COMPROMISED: "Likely Compromised" };
+  for (const d of decisions) {
+    const machine = machines.find((m) => m.hostname === d.id);
+    if (!machine) continue;
+    const saveRes = await directoryApi(`/directory/machines/${encodeURIComponent(machine.id)}/analyze`, {
+      method: "POST",
+      body: {
+        verdict: VERDICT_LABELS[d.verdict] || d.verdict,
+        confidence: "Medium",
+        analysis: d.reason,
+        nextStep: d.verdict === "LIKELY_COMPROMISED" ? "Review and restrict access to this device immediately." : null,
+      },
+    });
+    if (saveRes.ok) Object.assign(machine, normalizeMachine(saveRes.machine));
+  }
+
+  resultEl.innerHTML = `<div class="copilot-output">Scanned ${decisions.length} machine(s). ${
+    flagged.length > 0
+      ? `${flagged.length} flagged for review: ${flagged.map((f) => `${escapeHtml(f.id)} (${f.verdict.replace(/_/g, " ").toLowerCase()})`).join(", ")}.`
+      : "No anomalies found."
+  }</div>`;
+
+  renderMachinesTable();
+}
+
+// Identical shape to parseScanAllResponse (used for users), just matching
+// hostnames instead of usernames — same line format, same verdict set.
+function parseScanMachinesResponse(text, expectedHostnames) {
+  const decisions = [];
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    const match = line.match(/^([A-Za-z0-9.-]+):\s*(NORMAL|NEEDS_REVIEW|LIKELY_COMPROMISED)\s*\|?\s*(.*)$/i);
+    if (!match) continue;
+    const [, id, verdict, reason] = match;
+    if (expectedHostnames.includes(id)) {
+      decisions.push({ id, verdict: verdict.toUpperCase(), reason: reason || "" });
+    }
+  }
+  return decisions;
 }
 
 function updateCounts() {
@@ -300,6 +610,9 @@ function closeDrawer() {
   if (selectedGroupId) {
     selectedGroupId = null;
     renderGroupsTable();
+  } else if (selectedMachineId) {
+    selectedMachineId = null;
+    renderMachinesTable();
   } else {
     selectedUserId = null;
     renderTable();
@@ -820,6 +1133,9 @@ if (searchInput) {
 const scanAllBtn = document.getElementById("scan-all-btn");
 if (scanAllBtn) scanAllBtn.addEventListener("click", runScanAll);
 
+const scanMachinesBtn = document.getElementById("scan-machines-btn");
+if (scanMachinesBtn) scanMachinesBtn.addEventListener("click", runScanMachines);
+
 drawerOverlay.addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeDrawer();
@@ -1043,6 +1359,7 @@ async function initDirectory() {
   const loaded = await loadUsers();
   if (!loaded) return;
   await loadGroups();
+  await loadMachines();
   updateCounts();
   renderTable();
 }
