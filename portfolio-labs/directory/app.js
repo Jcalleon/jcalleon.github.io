@@ -9,11 +9,13 @@
 // SOC/ITSM/CRM; until then, the backend routes are intentionally open
 // (see worker.js comments) so this app works standalone.
 
-const WORKER_URL = "https://portfolio-ai-proxy.jcalleon.workers.dev";
+// Named distinctly from ai-client.js's WORKER_URL (loaded on this same page)
+// to avoid a duplicate `const` declaration — same value, different name.
+const DIRECTORY_API_BASE = "https://portfolio-ai-proxy.jcalleon.workers.dev";
 
 async function directoryApi(path, { method = "GET", body } = {}) {
   try {
-    const res = await fetch(`${WORKER_URL}${path}`, {
+    const res = await fetch(`${DIRECTORY_API_BASE}${path}`, {
       method,
       headers: {
         "Content-Type": "application/json",
