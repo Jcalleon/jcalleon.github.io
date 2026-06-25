@@ -34,10 +34,11 @@
     <h1>Qualys Certified Specialist</h1>
     <p class="qc-summary">
       Five platform certifications covering the full vulnerability lifecycle — scanning,
-      reporting, endpoint detection, compliance, and the underlying VMDR workflow. This is the
-      same tooling behind the
-      <a href="https://github.com/jcalleon/powershell-security-toolkit/tree/main/vulnerability-management" target="_blank" rel="noopener">vulnerability remediation automation</a>
-      work in the lab section — these certs are the formal grounding for that hands-on work.
+      reporting, endpoint detection, compliance, and the underlying VMDR workflow. The
+      automation that puts this into practice is below — five PowerShell modules running the
+      same lifecycle end to end, also published in the
+      <a href="https://github.com/jcalleon/powershell-security-toolkit" target="_blank" rel="noopener">PowerShell Security Toolkit</a>
+      repo.
     </p>
     <p class="qc-verify-note">
       These aren't on Credly — clicking a card below opens the actual signed certificate (PDF)
@@ -123,10 +124,32 @@
   </div>
 
   <p class="qc-tie-in">
-    This lifecycle is what the
-    <a href="https://github.com/jcalleon/powershell-security-toolkit/tree/main/vulnerability-management" target="_blank" rel="noopener">vulnerability remediation automation</a>
-    project automates end to end — these certifications are the formal version of the same workflow run by hand.
+    This lifecycle is what the automation scripts below run end to end — five PowerShell
+    modules covering the same workflow these certifications formalize, also published in the
+    <a href="https://github.com/jcalleon/powershell-security-toolkit" target="_blank" rel="noopener">PowerShell Security Toolkit</a>
+    repo.
   </p>
+</section>
+
+<!-- ============ SCRIPT VIEWER ============ -->
+<section class="sv-section">
+  <div class="section-head">
+    <h2>The automation, end to end</h2>
+    <p class="section-sub">Five PowerShell modules — scan, prioritize by real exploitability over raw CVSS, verify remediation, and report. Click a file to read it.</p>
+  </div>
+  <div class="sv-shell">
+    <nav class="sv-sidebar" id="sv-sidebar"></nav>
+    <div class="sv-main">
+      <div class="sv-file-header">
+        <div>
+          <div class="sv-file-name" id="sv-file-name">—</div>
+          <div class="sv-file-desc" id="sv-file-desc">—</div>
+        </div>
+        <a class="sv-download" id="sv-download" download>Download</a>
+      </div>
+      <pre class="sv-code"><code id="sv-code-content"></code></pre>
+    </div>
+  </div>
 </section>
 
 <!-- ============ FOOTER ============ -->
@@ -142,6 +165,117 @@
     </div>
   </div>
 </footer>
+
+<script src="script-showcase-data.js"></script>
+<script>
+  const sidebar = document.getElementById('sv-sidebar');
+  const fileNameEl = document.getElementById('sv-file-name');
+  const fileDescEl = document.getElementById('sv-file-desc');
+  const codeEl = document.getElementById('sv-code-content');
+  const downloadEl = document.getElementById('sv-download');
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Minimal PowerShell-aware highlighting with real multi-line block-comment
+  // (<# ... #>) tracking, since a per-line-only pattern misses everything
+  // inside a comment block. Tokens are matched against the ORIGINAL text
+  // and HTML-escaped once each, then assembled — chaining multiple
+  // .replace() passes over already-HTML-wrapped output causes a later
+  // pass to match text inside an earlier pass's own injected span
+  // attributes, corrupting the markup.
+  function highlight(code) {
+    const lines = code.split('\n');
+    let inBlockComment = false;
+    const renderedLines = [];
+
+    const tokenPattern = /(#[^\n]*)|('(?:[^'\n]|'')*')|("(?:[^"\n]|"")*")|(<#|#>)|(\$[a-zA-Z_][a-zA-Z0-9_]*)|(\b[A-Z][a-zA-Z]*-[A-Z][a-zA-Z]*\b)|(\b(?:param|function|return|if|else|elseif|foreach|while|do|switch|try|catch|finally|throw)\b)/g;
+
+    for (const line of lines) {
+      if (inBlockComment) {
+        const endIdx = line.indexOf('#>');
+        if (endIdx === -1) {
+          renderedLines.push(`<span class="tok-comment">${escapeHtml(line)}</span>`);
+          continue;
+        }
+        const commentPart = line.slice(0, endIdx + 2);
+        const rest = line.slice(endIdx + 2);
+        inBlockComment = false;
+        renderedLines.push(`<span class="tok-comment">${escapeHtml(commentPart)}</span>${escapeHtml(rest)}`);
+        continue;
+      }
+
+      let result = '';
+      let lastIndex = 0;
+      let match;
+      tokenPattern.lastIndex = 0; // reset explicitly — this regex object is reused across every line in the loop, and its lastIndex otherwise carries over from whatever position the previous line's matching left it at, silently breaking matches on the next line
+
+      while ((match = tokenPattern.exec(line)) !== null) {
+        result += escapeHtml(line.slice(lastIndex, match.index));
+        const [full, lineCommentTok, singleQuote, doubleQuote, blockDelim, variable, cmdlet, keyword] = match;
+
+        if (lineCommentTok) {
+          result += `<span class="tok-comment">${escapeHtml(lineCommentTok)}</span>`;
+          lastIndex = line.length;
+          break;
+        } else if (singleQuote || doubleQuote) {
+          result += `<span class="tok-string">${escapeHtml(full)}</span>`;
+        } else if (blockDelim === '<#') {
+          inBlockComment = true;
+          result += `<span class="tok-comment">${escapeHtml(line.slice(match.index))}</span>`;
+          lastIndex = line.length;
+          break;
+        } else if (variable) {
+          result += `<span class="tok-variable">${escapeHtml(full)}</span>`;
+        } else if (cmdlet) {
+          result += `<span class="tok-cmdlet">${escapeHtml(full)}</span>`;
+        } else if (keyword) {
+          result += `<span class="tok-keyword">${escapeHtml(full)}</span>`;
+        }
+        lastIndex = match.index + full.length;
+      }
+      result += escapeHtml(line.slice(lastIndex));
+      renderedLines.push(result);
+    }
+
+    return renderedLines.join('\n');
+  }
+
+  function renderFile(key) {
+    const file = SCRIPT_FILES[key];
+    if (!file) return;
+
+    fileNameEl.textContent = file.name;
+    fileDescEl.textContent = file.description;
+    codeEl.innerHTML = highlight(file.content);
+
+    const blob = new Blob([file.content], { type: 'text/plain' });
+    downloadEl.href = URL.createObjectURL(blob);
+    downloadEl.setAttribute('download', file.name);
+
+    document.querySelectorAll('.sv-sidebar-item').forEach((el) => el.classList.remove('active'));
+    document.querySelector(`[data-file-key="${key}"]`)?.classList.add('active');
+  }
+
+  sidebar.innerHTML = Object.entries(SCRIPT_FILES)
+    .map(
+      ([key, file]) => `
+      <div class="sv-sidebar-item" data-file-key="${key}">
+        <div class="sv-sidebar-name">${escapeHtml(file.name)}</div>
+        <div class="sv-sidebar-meta">${file.lineCount} lines · ${escapeHtml(file.tag)}</div>
+      </div>`
+    )
+    .join('');
+
+  sidebar.querySelectorAll('.sv-sidebar-item').forEach((el) => {
+    el.addEventListener('click', () => renderFile(el.dataset.fileKey));
+  });
+
+  renderFile(Object.keys(SCRIPT_FILES)[0]);
+</script>
 
 </body>
 </html>

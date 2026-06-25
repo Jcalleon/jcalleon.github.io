@@ -1231,7 +1231,7 @@ section {
 .qc-tie-in a:hover { color: var(--amber); border-color: rgba(240, 169, 60, 0.5); }
 
 /* ==========================================================================
-   SCRIPT VIEWER — qualys-scripts.html
+   SCRIPT VIEWER — embedded in qualys-certifications.html
    ========================================================================== */
 .sv-section {
   max-width: 1180px;
