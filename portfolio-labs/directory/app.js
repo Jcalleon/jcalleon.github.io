@@ -632,6 +632,131 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") closeDrawer();
 });
 
+// ---- New user creation (Phase E2) ----
+
+// Mirrors the backend's generateUsername exactly, so the form shows the
+// same auto-generated value the server would compute if the field were
+// left untouched — the person can still edit it before submitting.
+function generateUsernamePreview(displayName) {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+  const first = parts[0][0].toLowerCase();
+  const last = parts[parts.length - 1].toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${first}${last}`;
+}
+
+let usernameManuallyEdited = false;
+let cachedGroups = [];
+
+async function openNewUserModal() {
+  const modal = document.getElementById("new-user-modal");
+  modal.classList.add("open");
+
+  // Reset the form every time it opens, so a previous attempt's input
+  // doesn't linger if the person cancels and reopens it later.
+  document.getElementById("nu-display-name").value = "";
+  document.getElementById("nu-username").value = "";
+  document.getElementById("nu-email").value = "";
+  document.getElementById("nu-department").value = "";
+  document.getElementById("nu-title").value = "";
+  document.getElementById("new-user-error").innerHTML = "";
+  usernameManuallyEdited = false;
+
+  const groupList = document.getElementById("nu-group-list");
+  if (cachedGroups.length === 0) {
+    const res = await directoryApi("/directory/groups");
+    if (res.ok) cachedGroups = res.groups;
+  }
+
+  if (cachedGroups.length === 0) {
+    groupList.innerHTML = `<div class="demo-note">Couldn't load groups.</div>`;
+  } else {
+    groupList.innerHTML = cachedGroups
+      .map(
+        (g) => `<label class="group-checkbox-row">
+          <input type="checkbox" value="${g.id}" data-group-name="${escapeHtml(g.name)}" ${g.name === "Domain Users" ? "checked disabled" : ""} />
+          ${escapeHtml(g.name)}
+        </label>`
+      )
+      .join("");
+  }
+}
+
+function closeNewUserModal() {
+  document.getElementById("new-user-modal").classList.remove("open");
+}
+
+async function submitNewUser() {
+  const displayName = document.getElementById("nu-display-name").value.trim();
+  const username = document.getElementById("nu-username").value.trim();
+  const email = document.getElementById("nu-email").value.trim();
+  const department = document.getElementById("nu-department").value.trim();
+  const title = document.getElementById("nu-title").value.trim();
+  const errorEl = document.getElementById("new-user-error");
+  const submitBtn = document.getElementById("nu-submit");
+
+  errorEl.innerHTML = "";
+  if (!displayName || !department || !title) {
+    errorEl.innerHTML = `<div class="copilot-error">Display name, department, and title are required.</div>`;
+    return;
+  }
+
+  const groupIds = Array.from(document.querySelectorAll("#nu-group-list input[type=checkbox]:checked"))
+    .map((cb) => cb.value);
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Creating...";
+  const res = await directoryApi("/directory/users", {
+    method: "POST",
+    body: { displayName, username, email: email || null, department, title, groupIds },
+  });
+  submitBtn.disabled = false;
+  submitBtn.textContent = "Create user";
+
+  if (!res.ok) {
+    errorEl.innerHTML = `<div class="copilot-error">${escapeHtml(res.message || "Couldn't create that user.")}</div>`;
+    return;
+  }
+
+  closeNewUserModal();
+  await loadUsers();
+  updateCounts();
+  renderTable();
+  openDrawer(res.user.id);
+}
+
+const newUserBtn = document.getElementById("new-user-btn");
+if (newUserBtn) newUserBtn.addEventListener("click", openNewUserModal);
+
+const nuCancelBtn = document.getElementById("nu-cancel");
+if (nuCancelBtn) nuCancelBtn.addEventListener("click", closeNewUserModal);
+
+const nuSubmitBtn = document.getElementById("nu-submit");
+if (nuSubmitBtn) nuSubmitBtn.addEventListener("click", submitNewUser);
+
+const newUserModal = document.getElementById("new-user-modal");
+if (newUserModal) {
+  newUserModal.addEventListener("click", (e) => {
+    if (e.target === newUserModal) closeNewUserModal();
+  });
+}
+
+const nuDisplayNameInput = document.getElementById("nu-display-name");
+if (nuDisplayNameInput) {
+  nuDisplayNameInput.addEventListener("input", (e) => {
+    if (usernameManuallyEdited) return; // don't fight someone who already edited the username field
+    document.getElementById("nu-username").value = generateUsernamePreview(e.target.value);
+  });
+}
+
+const nuUsernameInput = document.getElementById("nu-username");
+if (nuUsernameInput) {
+  nuUsernameInput.addEventListener("input", () => {
+    usernameManuallyEdited = true;
+  });
+}
+
 // ---- Init ----
 async function initDirectory() {
   const loaded = await loadUsers();

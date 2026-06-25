@@ -26,6 +26,7 @@
         <span class="topbar-app-name">Identity &amp; Access</span>
       </div>
       <div class="topbar-right">
+        <button class="copilot-trigger" id="new-user-btn" style="padding:6px 14px;">+ New user</button>
         <span class="topbar-user" id="topbar-user"></span>
         <span class="topbar-link">⛁ <a href="../launcher.html">Launcher</a></span>
         <span class="topbar-link">⤺ <a href="https://jcalleon.github.io/#lab">Back to portfolio</a></span>
@@ -126,6 +127,48 @@
     </div>
     <div class="drawer-body" id="drawer-body"></div>
   </aside>
+
+  <div class="modal-overlay" id="new-user-modal">
+    <div class="modal">
+      <div class="drawer-title" style="margin-bottom:16px;">New user</div>
+
+      <div class="form-row">
+        <label class="form-label">Display name</label>
+        <input class="form-input" id="nu-display-name" placeholder="Jane Doe" />
+      </div>
+      <div class="form-row">
+        <label class="form-label">Username</label>
+        <input class="form-input" id="nu-username" placeholder="auto-generated from name" />
+        <div class="demo-note" style="margin-top:4px;">Auto-fills from the display name — edit if you'd like something different.</div>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Email (optional — leave blank for a service account)</label>
+        <input class="form-input" id="nu-email" type="email" placeholder="jane.doe@corp.internal" />
+      </div>
+      <div class="form-row">
+        <label class="form-label">Department</label>
+        <input class="form-input" id="nu-department" placeholder="Engineering" />
+      </div>
+      <div class="form-row">
+        <label class="form-label">Title</label>
+        <input class="form-input" id="nu-title" placeholder="Software Engineer" />
+      </div>
+      <div class="form-row">
+        <label class="form-label">Groups</label>
+        <div class="group-checkbox-list" id="nu-group-list">
+          <div class="demo-note">Loading groups...</div>
+        </div>
+        <div class="demo-note" style="margin-top:4px;">Domain Users is added automatically to every account.</div>
+      </div>
+
+      <div id="new-user-error"></div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="nu-cancel">Cancel</button>
+        <button class="copilot-trigger" id="nu-submit">Create user</button>
+      </div>
+    </div>
+  </div>
 
   <script src="../shared/ai-client.js"></script>
   <script src="app.js"></script>
