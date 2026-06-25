@@ -53,7 +53,7 @@ function corsHeaders(origin) {
   const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Session-Token",
     "Vary": "Origin",
   };
@@ -1088,9 +1088,197 @@ async function listGroups(request, env, headers) {
   if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
 
   const { results } = await env.DB.prepare(
-    `SELECT * FROM directory_groups ORDER BY name ASC`
+    `SELECT g.*, (SELECT COUNT(*) FROM directory_group_members gm WHERE gm.group_id = g.id) as member_count
+     FROM directory_groups g
+     ORDER BY g.name ASC`
   ).all();
   return json({ groups: results }, 200, headers);
+}
+
+// GET /directory/groups/:id — a single group plus its full member list
+// (joined with ad_users, so the frontend gets display names/titles, not
+// just user IDs).
+async function getGroup(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  const group = await env.DB.prepare(`SELECT * FROM directory_groups WHERE id = ?`).bind(id).first();
+  if (!group) return json({ error: "not_found" }, 404, headers);
+
+  const { results: members } = await env.DB.prepare(
+    `SELECT u.id, u.display_name, u.title, u.department, u.status, gm.added_at
+     FROM directory_group_members gm
+     JOIN ad_users u ON u.id = gm.user_id
+     WHERE gm.group_id = ?
+     ORDER BY u.display_name ASC`
+  ).bind(id).all();
+
+  return json({ group, members }, 200, headers);
+}
+
+// POST /directory/groups — create a new group.
+async function createGroup(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const name = (body.name || "").trim();
+  const description = (body.description || "").trim() || null;
+  if (!name) return json({ error: "Group name is required" }, 400, headers);
+
+  const existing = await env.DB.prepare(`SELECT id FROM directory_groups WHERE name = ?`).bind(name).first();
+  if (existing) return json({ error: "name_taken", message: `A group named "${name}" already exists.` }, 409, headers);
+
+  const id = genId("GRP");
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO directory_groups (id, name, description, created_at) VALUES (?, ?, ?, ?)`
+  ).bind(id, name, description, now).run();
+
+  return json({ group: { id, name, description, created_at: now } }, 201, headers);
+}
+
+// PATCH /directory/groups/:id — rename a group / update its description.
+async function updateGroup(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const current = await env.DB.prepare(`SELECT * FROM directory_groups WHERE id = ?`).bind(id).first();
+  if (!current) return json({ error: "not_found" }, 404, headers);
+
+  const newName = body.name !== undefined ? body.name.trim() : current.name;
+  const newDescription = body.description !== undefined ? (body.description.trim() || null) : current.description;
+
+  if (!newName) return json({ error: "Group name cannot be empty" }, 400, headers);
+
+  if (newName !== current.name) {
+    const nameConflict = await env.DB.prepare(`SELECT id FROM directory_groups WHERE name = ? AND id != ?`).bind(newName, id).first();
+    if (nameConflict) return json({ error: "name_taken", message: `A group named "${newName}" already exists.` }, 409, headers);
+  }
+
+  await env.DB.prepare(`UPDATE directory_groups SET name = ?, description = ? WHERE id = ?`).bind(newName, newDescription, id).run();
+
+  // Keep every member's legacy ad_users.groups JSON column consistent with
+  // the rename — same "join table is source of truth, JSON is a derived
+  // cache" principle established when group creation was first built.
+  if (newName !== current.name) {
+    const { results: members } = await env.DB.prepare(`SELECT user_id FROM directory_group_members WHERE group_id = ?`).bind(id).all();
+    for (const m of members) {
+      const u = await env.DB.prepare(`SELECT groups FROM ad_users WHERE id = ?`).bind(m.user_id).first();
+      if (!u) continue;
+      const groupNames = JSON.parse(u.groups).map((g) => (g === current.name ? newName : g));
+      await env.DB.prepare(`UPDATE ad_users SET groups = ? WHERE id = ?`).bind(JSON.stringify(groupNames), m.user_id).run();
+    }
+  }
+
+  const updated = await env.DB.prepare(`SELECT * FROM directory_groups WHERE id = ?`).bind(id).first();
+  return json({ group: updated }, 200, headers);
+}
+
+// DELETE /directory/groups/:id — blocked if the group still has members,
+// matching the chosen safety model: clear membership first, then delete.
+async function deleteGroup(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  const group = await env.DB.prepare(`SELECT * FROM directory_groups WHERE id = ?`).bind(id).first();
+  if (!group) return json({ error: "not_found" }, 404, headers);
+
+  const memberCount = await env.DB.prepare(`SELECT COUNT(*) as count FROM directory_group_members WHERE group_id = ?`).bind(id).first();
+  if (memberCount.count > 0) {
+    return json({
+      error: "group_not_empty",
+      message: `This group still has ${memberCount.count} member(s). Remove everyone before deleting it.`,
+    }, 400, headers);
+  }
+
+  await env.DB.prepare(`DELETE FROM directory_groups WHERE id = ?`).bind(id).run();
+  return json({ message: "Group deleted" }, 200, headers);
+}
+
+// POST /directory/groups/:id/members — add a user to a group.
+async function addGroupMember(groupId, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const userId = (body.userId || "").trim();
+  if (!userId) return json({ error: "userId is required" }, 400, headers);
+
+  const group = await env.DB.prepare(`SELECT * FROM directory_groups WHERE id = ?`).bind(groupId).first();
+  if (!group) return json({ error: "not_found", message: "Group not found." }, 404, headers);
+
+  const targetUser = await env.DB.prepare(`SELECT * FROM ad_users WHERE id = ?`).bind(userId).first();
+  if (!targetUser) return json({ error: "not_found", message: "User not found." }, 404, headers);
+
+  const existing = await env.DB.prepare(`SELECT 1 FROM directory_group_members WHERE group_id = ? AND user_id = ?`).bind(groupId, userId).first();
+  if (existing) return json({ error: "already_member", message: "This user is already in that group." }, 400, headers);
+
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO directory_group_members (group_id, user_id, added_at) VALUES (?, ?, ?)`).bind(groupId, userId, now).run();
+
+  const groupNames = JSON.parse(targetUser.groups);
+  if (!groupNames.includes(group.name)) {
+    groupNames.push(group.name);
+    await env.DB.prepare(`UPDATE ad_users SET groups = ? WHERE id = ?`).bind(JSON.stringify(groupNames), userId).run();
+  }
+
+  return json({ message: "Member added" }, 201, headers);
+}
+
+// DELETE /directory/groups/:id/members/:userId — remove a user from a
+// group. Removing someone from Domain Users specifically is blocked —
+// every real seed user is in it, and the frontend's creation form already
+// treats it as non-optional, so silently allowing removal here would
+// create an inconsistent state the UI doesn't otherwise expect.
+async function removeGroupMember(groupId, userId, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  const group = await env.DB.prepare(`SELECT * FROM directory_groups WHERE id = ?`).bind(groupId).first();
+  if (!group) return json({ error: "not_found" }, 404, headers);
+
+  if (group.name === "Domain Users") {
+    return json({ error: "cannot_remove", message: "Every account must remain in Domain Users." }, 400, headers);
+  }
+
+  const existing = await env.DB.prepare(`SELECT 1 FROM directory_group_members WHERE group_id = ? AND user_id = ?`).bind(groupId, userId).first();
+  if (!existing) return json({ error: "not_found", message: "This user isn't in that group." }, 404, headers);
+
+  await env.DB.prepare(`DELETE FROM directory_group_members WHERE group_id = ? AND user_id = ?`).bind(groupId, userId).run();
+
+  const targetUser = await env.DB.prepare(`SELECT groups FROM ad_users WHERE id = ?`).bind(userId).first();
+  if (targetUser) {
+    const groupNames = JSON.parse(targetUser.groups).filter((g) => g !== group.name);
+    await env.DB.prepare(`UPDATE ad_users SET groups = ? WHERE id = ?`).bind(JSON.stringify(groupNames), userId).run();
+  }
+
+  return json({ message: "Member removed" }, 200, headers);
 }
 
 // Generates a username from a display name the same way the seed data's
@@ -1261,6 +1449,7 @@ export default {
     if (path === "/directory/users" && request.method === "POST") return createAdUser(request, env, headers);
     if (path === "/directory/users/bulk-analyze" && request.method === "POST") return bulkSaveAnomalyAnalysis(request, env, headers);
     if (path === "/directory/groups" && request.method === "GET") return listGroups(request, env, headers);
+    if (path === "/directory/groups" && request.method === "POST") return createGroup(request, env, headers);
 
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
     if (ticketMatch && request.method === "GET") return getTicket(ticketMatch[1], request, env, headers);
@@ -1288,6 +1477,17 @@ export default {
 
     const directoryAnalyzeMatch = path.match(/^\/directory\/users\/([^\/]+)\/analyze$/);
     if (directoryAnalyzeMatch && request.method === "POST") return saveAnomalyAnalysis(directoryAnalyzeMatch[1], request, env, headers);
+
+    const groupMemberDeleteMatch = path.match(/^\/directory\/groups\/([^\/]+)\/members\/([^\/]+)$/);
+    if (groupMemberDeleteMatch && request.method === "DELETE") return removeGroupMember(groupMemberDeleteMatch[1], groupMemberDeleteMatch[2], request, env, headers);
+
+    const groupMembersMatch = path.match(/^\/directory\/groups\/([^\/]+)\/members$/);
+    if (groupMembersMatch && request.method === "POST") return addGroupMember(groupMembersMatch[1], request, env, headers);
+
+    const groupMatch = path.match(/^\/directory\/groups\/([^\/]+)$/);
+    if (groupMatch && request.method === "GET") return getGroup(groupMatch[1], request, env, headers);
+    if (groupMatch && request.method === "PATCH") return updateGroup(groupMatch[1], request, env, headers);
+    if (groupMatch && request.method === "DELETE") return deleteGroup(groupMatch[1], request, env, headers);
 
     return json({ error: "not_found" }, 404, headers);
   },
