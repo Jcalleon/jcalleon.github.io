@@ -34,6 +34,14 @@
     </header>
 
     <nav class="sidebar">
+      <div class="nav-section-label">View</div>
+      <div class="nav-item active" data-view="users">
+        <span>Users</span>
+      </div>
+      <div class="nav-item" data-view="groups">
+        <span>Groups</span>
+      </div>
+
       <div class="nav-section-label">Directory</div>
       <div class="nav-item active" data-filter="all">
         <span>All users</span>
@@ -93,6 +101,24 @@
           <span class="demo-note" style="margin:0;">One batched AI call assesses every user's RADIUS + TACACS+ history at once.</span>
         </div>
         <div id="scan-all-result" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="panel" id="groups-panel" style="display:none;">
+        <div style="padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-size:13px; color:var(--text-secondary);">Groups</span>
+          <button class="copilot-trigger" id="new-group-btn" style="padding:6px 14px;">+ New group</button>
+        </div>
+        <table class="table" id="groups-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Description</th>
+              <th>Members</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="groups-tbody"></tbody>
+        </table>
       </div>
 
       <div class="panel" id="table-panel">
@@ -166,6 +192,28 @@
       <div class="modal-actions">
         <button class="btn-secondary" id="nu-cancel">Cancel</button>
         <button class="copilot-trigger" id="nu-submit">Create user</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="group-modal">
+    <div class="modal">
+      <div class="drawer-title" style="margin-bottom:16px;" id="group-modal-title">New group</div>
+
+      <div class="form-row">
+        <label class="form-label">Name</label>
+        <input class="form-input" id="grp-name" placeholder="QA-Team" />
+      </div>
+      <div class="form-row">
+        <label class="form-label">Description (optional)</label>
+        <textarea class="form-textarea" id="grp-description" placeholder="What is this group for?"></textarea>
+      </div>
+
+      <div id="group-modal-error"></div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="grp-cancel">Cancel</button>
+        <button class="copilot-trigger" id="grp-submit">Create group</button>
       </div>
     </div>
   </div>

@@ -89,6 +89,9 @@ let currentFilter = "all";
 let currentDeptFilter = null;
 let searchQuery = "";
 let selectedUserId = null;
+let currentView = "users"; // "users" | "groups"
+let groups = [];
+let selectedGroupId = null; // used to distinguish a group drawer from a user drawer, since both reuse #drawer
 
 const tbody = document.getElementById("user-tbody");
 const drawer = document.getElementById("drawer");
@@ -139,6 +142,60 @@ async function loadUsers() {
   }
   users = res.users.map(normalizeUser);
   return true;
+}
+
+async function loadGroups() {
+  const res = await directoryApi("/directory/groups");
+  if (!res.ok) return false;
+  groups = res.groups;
+  return true;
+}
+
+// ---- View switching (Phase E3) ----
+
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll("[data-view]").forEach((n) => n.classList.remove("active"));
+  document.querySelector(`[data-view="${view}"]`)?.classList.add("active");
+
+  const groupsPanel = document.getElementById("groups-panel");
+  const tablePanel = document.getElementById("table-panel");
+  const scanAllPanel = document.getElementById("scan-all-btn")?.closest(".panel");
+
+  if (view === "groups") {
+    if (groupsPanel) groupsPanel.style.display = "block";
+    if (tablePanel) tablePanel.style.display = "none";
+    if (scanAllPanel) scanAllPanel.style.display = "none";
+    renderGroupsTable();
+  } else {
+    if (groupsPanel) groupsPanel.style.display = "none";
+    if (tablePanel) tablePanel.style.display = "block";
+    if (scanAllPanel) scanAllPanel.style.display = "block";
+    renderTable();
+  }
+}
+
+function renderGroupsTable() {
+  const tbody = document.getElementById("groups-tbody");
+  if (!tbody) return;
+
+  if (groups.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state">No groups yet.</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = "";
+  for (const group of [...groups].sort((a, b) => a.name.localeCompare(b.name))) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">${escapeHtml(group.name)}</td>
+      <td style="color:var(--text-dim); font-size:12px;">${escapeHtml(group.description || "—")}</td>
+      <td class="mono">${group.member_count}</td>
+      <td></td>
+    `;
+    tr.addEventListener("click", () => openGroupDrawer(group.id));
+    tbody.appendChild(tr);
+  }
 }
 
 function updateCounts() {
@@ -240,8 +297,144 @@ async function openDrawer(userId) {
 function closeDrawer() {
   drawer.classList.remove("open");
   drawerOverlay.classList.remove("open");
-  selectedUserId = null;
-  renderTable();
+  if (selectedGroupId) {
+    selectedGroupId = null;
+    renderGroupsTable();
+  } else {
+    selectedUserId = null;
+    renderTable();
+  }
+}
+
+async function openGroupDrawer(groupId) {
+  selectedGroupId = groupId;
+  const group = groups.find((g) => g.id === groupId);
+  drawerUserId.textContent = group.name;
+  drawerBody.innerHTML = `<div class="demo-note">Loading members...</div>`;
+  drawer.classList.add("open");
+  drawerOverlay.classList.add("open");
+
+  const res = await directoryApi(`/directory/groups/${encodeURIComponent(groupId)}`);
+  if (!res.ok) {
+    drawerBody.innerHTML = `<div class="empty-state">Couldn't load this group. ${escapeHtml(res.message || "")}</div>`;
+    return;
+  }
+
+  drawerBody.innerHTML = renderGroupDrawerContent(res.group, res.members);
+  attachGroupDrawerHandlers(res.group, res.members);
+}
+
+function renderGroupDrawerContent(group, members) {
+  const isDomainUsers = group.name === "Domain Users";
+
+  const memberRows = members.length === 0
+    ? `<div class="demo-note">No members yet.</div>`
+    : members
+        .map(
+          (m) => `<div class="history-entry">
+            <div class="history-entry-top">
+              <span class="badge badge-${statusBadgeClass(m.status)}">${m.status}</span>
+              <span class="mono" style="font-size:11px; color:var(--text-dim);">${escapeHtml(m.id)}</span>
+            </div>
+            <div class="history-entry-detail">${escapeHtml(m.display_name)} — ${escapeHtml(m.title)}, ${escapeHtml(m.department)}</div>
+            ${
+              isDomainUsers
+                ? ""
+                : `<button class="btn-secondary remove-member-btn" data-user-id="${m.id}" style="margin-top:6px; padding:4px 10px; font-size:11px;">Remove from group</button>`
+            }
+          </div>`
+        )
+        .join("");
+
+  return `
+    <div class="detail-section">
+      <div class="detail-label">Group</div>
+      <div style="font-size:14px; font-weight:600; margin-bottom:4px;">${escapeHtml(group.name)}</div>
+      <div style="font-size:12px; color:var(--text-dim);">${escapeHtml(group.description || "No description.")}</div>
+    </div>
+
+    <div class="detail-section">
+      <button class="copilot-trigger" id="rename-group-btn" style="padding:6px 14px; margin-right:8px;">Rename / edit description</button>
+      ${
+        isDomainUsers
+          ? ""
+          : `<button class="btn-secondary" id="delete-group-btn" style="padding:6px 14px;">Delete group</button>`
+      }
+      ${isDomainUsers ? `<div class="demo-note" style="margin-top:8px;">Domain Users can't be deleted — every account must remain in it.</div>` : ""}
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-label">Add member</div>
+      <select class="status-select" id="add-member-select" style="width:100%;">
+        <option value="">Select a user...</option>
+        ${users
+          .filter((u) => !members.some((m) => m.id === u.id))
+          .map((u) => `<option value="${u.id}">${escapeHtml(u.displayName)} (${u.id})</option>`)
+          .join("")}
+      </select>
+      <button class="copilot-trigger" id="add-member-btn" style="margin-top:8px; padding:6px 14px;">Add to group</button>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-label">Members (${members.length})</div>
+      ${memberRows}
+    </div>
+  `;
+}
+
+function attachGroupDrawerHandlers(group, members) {
+  document.getElementById("drawer-close").onclick = closeDrawer;
+
+  document.getElementById("rename-group-btn").onclick = () => openGroupModal(group);
+
+  const deleteBtn = document.getElementById("delete-group-btn");
+  if (deleteBtn) {
+    deleteBtn.onclick = async () => {
+      const confirmed = window.confirm(`Delete "${group.name}"? This can't be undone.`);
+      if (!confirmed) return;
+      const res = await directoryApi(`/directory/groups/${encodeURIComponent(group.id)}`, { method: "DELETE" });
+      if (!res.ok) {
+        window.alert(res.message || "Couldn't delete that group.");
+        return;
+      }
+      closeDrawer();
+      await loadGroups();
+      renderGroupsTable();
+    };
+  }
+
+  document.getElementById("add-member-btn").onclick = async () => {
+    const select = document.getElementById("add-member-select");
+    const userId = select.value;
+    if (!userId) return;
+    const res = await directoryApi(`/directory/groups/${encodeURIComponent(group.id)}/members`, {
+      method: "POST",
+      body: { userId },
+    });
+    if (!res.ok) {
+      window.alert(res.message || "Couldn't add that member.");
+      return;
+    }
+    await loadUsers(); // a user's groups JSON changed, keep the in-memory copy fresh
+    await loadGroups(); // member_count changed
+    openGroupDrawer(group.id); // re-fetch to show the updated member list
+  };
+
+  document.querySelectorAll(".remove-member-btn").forEach((btn) => {
+    btn.onclick = async () => {
+      const userId = btn.dataset.userId;
+      const res = await directoryApi(`/directory/groups/${encodeURIComponent(group.id)}/members/${encodeURIComponent(userId)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        window.alert(res.message || "Couldn't remove that member.");
+        return;
+      }
+      await loadUsers();
+      await loadGroups();
+      openGroupDrawer(group.id);
+    };
+  });
 }
 
 function renderDrawerContent(user, radius, tacacs, auditLog) {
@@ -757,10 +950,99 @@ if (nuUsernameInput) {
   });
 }
 
+// ---- Group create/rename modal (Phase E3) ----
+// Reused for both "create" and "rename" — editingGroup tracks which mode
+// the modal is in, since the form fields and submit behavior are nearly
+// identical, just targeting a different endpoint (POST vs PATCH).
+
+let editingGroup = null;
+
+function openGroupModal(group) {
+  editingGroup = group || null;
+  const modal = document.getElementById("group-modal");
+  const title = document.getElementById("group-modal-title");
+  const submitBtn = document.getElementById("grp-submit");
+
+  document.getElementById("grp-name").value = group ? group.name : "";
+  document.getElementById("grp-description").value = group ? group.description || "" : "";
+  document.getElementById("group-modal-error").innerHTML = "";
+
+  title.textContent = group ? "Rename group" : "New group";
+  submitBtn.textContent = group ? "Save changes" : "Create group";
+
+  modal.classList.add("open");
+}
+
+function closeGroupModal() {
+  document.getElementById("group-modal").classList.remove("open");
+  editingGroup = null;
+}
+
+async function submitGroupModal() {
+  const name = document.getElementById("grp-name").value.trim();
+  const description = document.getElementById("grp-description").value.trim();
+  const errorEl = document.getElementById("group-modal-error");
+  const submitBtn = document.getElementById("grp-submit");
+
+  errorEl.innerHTML = "";
+  if (!name) {
+    errorEl.innerHTML = `<div class="copilot-error">Group name is required.</div>`;
+    return;
+  }
+
+  submitBtn.disabled = true;
+  const res = editingGroup
+    ? await directoryApi(`/directory/groups/${encodeURIComponent(editingGroup.id)}`, {
+        method: "PATCH",
+        body: { name, description },
+      })
+    : await directoryApi("/directory/groups", {
+        method: "POST",
+        body: { name, description },
+      });
+  submitBtn.disabled = false;
+
+  if (!res.ok) {
+    errorEl.innerHTML = `<div class="copilot-error">${escapeHtml(res.message || "Couldn't save that group.")}</div>`;
+    return;
+  }
+
+  const wasEditing = !!editingGroup;
+  closeGroupModal();
+  await loadGroups();
+  renderGroupsTable();
+  if (wasEditing) {
+    await loadUsers(); // a rename may have changed every member's groups JSON
+    openGroupDrawer(res.group.id);
+  }
+}
+
+const newGroupBtn = document.getElementById("new-group-btn");
+if (newGroupBtn) newGroupBtn.addEventListener("click", () => openGroupModal(null));
+
+const grpCancelBtn = document.getElementById("grp-cancel");
+if (grpCancelBtn) grpCancelBtn.addEventListener("click", closeGroupModal);
+
+const grpSubmitBtn = document.getElementById("grp-submit");
+if (grpSubmitBtn) grpSubmitBtn.addEventListener("click", submitGroupModal);
+
+const groupModal = document.getElementById("group-modal");
+if (groupModal) {
+  groupModal.addEventListener("click", (e) => {
+    if (e.target === groupModal) closeGroupModal();
+  });
+}
+
+// ---- View toggle wiring ----
+document.querySelectorAll("[data-view]").forEach((el) => {
+  el.addEventListener("click", () => switchView(el.dataset.view));
+});
+
 // ---- Init ----
 async function initDirectory() {
   const loaded = await loadUsers();
   if (!loaded) return;
+  await loadGroups();
   updateCounts();
   renderTable();
 }
