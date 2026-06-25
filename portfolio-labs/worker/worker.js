@@ -1080,6 +1080,110 @@ async function bulkSaveAnomalyAnalysis(request, env, headers) {
   return json({ message: `Saved analysis for ${saved} user(s).`, saved }, 200, headers);
 }
 
+// GET /directory/groups — list all groups, for the new-user form's group
+// checkboxes and (later) group management itself.
+async function listGroups(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM directory_groups ORDER BY name ASC`
+  ).all();
+  return json({ groups: results }, 200, headers);
+}
+
+// Generates a username from a display name the same way the seed data's
+// usernames look (e.g. "Jane Doe" -> "jdoe"... but the existing convention
+// is actually "first initial + last name" with NO separator for regular
+// users (jalvarez, mosei, dpatel) and "svc-" prefix for service accounts.
+// This mirrors that exact convention so new users fit the existing pattern.
+function generateUsername(displayName) {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0].toLowerCase().replace(/[^a-z0-9]/g, "");
+  const first = parts[0][0].toLowerCase();
+  const last = parts[parts.length - 1].toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${first}${last}`;
+}
+
+// POST /directory/users — create a new AD user. Username can be supplied
+// directly (the frontend auto-generates one from the display name and
+// lets the person override it before submitting) or omitted, in which case
+// this generates one server-side as a fallback.
+async function createAdUser(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.directory_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const displayName = (body.displayName || "").trim();
+  const department = (body.department || "").trim();
+  const title = (body.title || "").trim();
+  const email = body.email ? body.email.trim() : null;
+  const groupIds = Array.isArray(body.groupIds) ? body.groupIds : [];
+  let username = (body.username || "").trim().toLowerCase();
+
+  if (!displayName) return json({ error: "Display name is required" }, 400, headers);
+  if (!department) return json({ error: "Department is required" }, 400, headers);
+  if (!title) return json({ error: "Title is required" }, 400, headers);
+
+  if (!username) username = generateUsername(displayName);
+  if (!username) return json({ error: "Couldn't determine a username — provide one directly" }, 400, headers);
+
+  const existing = await env.DB.prepare(`SELECT id FROM ad_users WHERE id = ?`).bind(username).first();
+  if (existing) return json({ error: "username_taken", message: `Username "${username}" is already in use.` }, 409, headers);
+
+  // groups (the legacy JSON column) is kept in sync with the real
+  // directory_group_members rows below, so every existing page that reads
+  // ad_users.groups directly (the table, the drawer) keeps working
+  // without modification — the join table is the source of truth, this
+  // column is a derived cache of it.
+  const now = new Date().toISOString();
+  const groupNames = [];
+  if (groupIds.length > 0) {
+    const { results: groupRows } = await env.DB.prepare(
+      `SELECT id, name FROM directory_groups WHERE id IN (${groupIds.map(() => "?").join(",")})`
+    ).bind(...groupIds).all();
+    for (const g of groupRows) groupNames.push(g.name);
+  }
+  // Every user is in Domain Users by convention, matching every existing
+  // seed user — add it automatically if it wasn't explicitly selected.
+  if (!groupNames.includes("Domain Users")) {
+    const domainUsersGroup = await env.DB.prepare(`SELECT id, name FROM directory_groups WHERE name = 'Domain Users'`).first();
+    if (domainUsersGroup) {
+      groupIds.push(domainUsersGroup.id);
+      groupNames.push(domainUsersGroup.name);
+    }
+  }
+
+  const ou = `OU=${department.replace(/[^a-zA-Z0-9 ]/g, "")},OU=Users,DC=corp,DC=internal`;
+
+  await env.DB.prepare(
+    `INSERT INTO ad_users (id, display_name, email, department, ou, title, status, groups, last_logon, created_at, mfa_enrolled) VALUES (?, ?, ?, ?, ?, ?, 'enabled', ?, NULL, ?, 0)`
+  ).bind(username, displayName, email, department, ou, title, JSON.stringify(groupNames), now).run();
+
+  for (const groupId of groupIds) {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO directory_group_members (group_id, user_id, added_at) VALUES (?, ?, ?)`
+    ).bind(groupId, username, now).run();
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO directory_audit_log (id, user_id, actor_email, field, old_value, new_value, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).bind(genId("DAUD"), username, user.email, "created", null, "account created", now).run();
+
+  const created = await env.DB.prepare(`SELECT * FROM ad_users WHERE id = ?`).bind(username).first();
+  created.groups = JSON.parse(created.groups);
+  return json({ user: created }, 201, headers);
+}
+
 // GET /stats — aggregate dashboard data. Agent-only.
 async function getStats(request, env, headers) {
   const user = await getSessionUser(request, env);
@@ -1154,7 +1258,9 @@ export default {
 
     // ---- Directory app routes ----
     if (path === "/directory/users" && request.method === "GET") return listAdUsers(request, env, headers);
+    if (path === "/directory/users" && request.method === "POST") return createAdUser(request, env, headers);
     if (path === "/directory/users/bulk-analyze" && request.method === "POST") return bulkSaveAnomalyAnalysis(request, env, headers);
+    if (path === "/directory/groups" && request.method === "GET") return listGroups(request, env, headers);
 
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
     if (ticketMatch && request.method === "GET") return getTicket(ticketMatch[1], request, env, headers);
