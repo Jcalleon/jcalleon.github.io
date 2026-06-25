@@ -1554,3 +1554,47 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
 
   init();
 })();
+
+// ===========================================================================
+// NAV SCROLL-SPY — highlights whichever section is currently in view.
+// Uses IntersectionObserver rather than a manual scroll-position calculation:
+// cheaper, and naturally handles sections of very different heights (About
+// is short, Experience is tall) without any per-section tuning.
+// ===========================================================================
+(function () {
+  const navLinks = document.querySelectorAll('.nav-links a[data-nav-target]');
+  if (navLinks.length === 0) return;
+
+  const linkByTarget = {};
+  navLinks.forEach((link) => { linkByTarget[link.dataset.navTarget] = link; });
+
+  const sections = Array.from(navLinks)
+    .map((link) => document.getElementById(link.dataset.navTarget))
+    .filter(Boolean);
+
+  function setActive(targetId) {
+    navLinks.forEach((link) => link.classList.remove('nav-active'));
+    if (targetId && linkByTarget[targetId]) {
+      linkByTarget[targetId].classList.add('nav-active');
+    }
+  }
+
+  // A section counts as "current" once its top has crossed roughly the
+  // upper third of the viewport — feels right for sections of any height,
+  // rather than requiring the whole section to be on screen at once.
+  const observer = new IntersectionObserver(
+    (entries) => {
+      // Among all currently-intersecting sections, the one with the
+      // smallest distance from the trigger line is "most current" — this
+      // matters when a short section (About) and the next one are both
+      // partially visible at once.
+      const visible = entries.filter((e) => e.isIntersecting);
+      if (visible.length === 0) return;
+      visible.sort((a, b) => Math.abs(a.boundingClientRect.top) - Math.abs(b.boundingClientRect.top));
+      setActive(visible[0].target.id);
+    },
+    { rootMargin: '-30% 0px -60% 0px', threshold: 0 }
+  );
+
+  sections.forEach((section) => observer.observe(section));
+})();

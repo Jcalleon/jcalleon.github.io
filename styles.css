@@ -111,14 +111,37 @@ ul { list-style: none; }
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 32px;
   font-family: var(--font-mono);
   font-size: 13px;
+  font-weight: 500;
   color: var(--text-dim);
 }
 
-.nav-links a { transition: color 0.15s ease; }
-.nav-links a:hover { color: var(--amber); }
+.nav-links a {
+  position: relative;
+  padding: 4px 0;
+  transition: color 0.15s ease;
+}
+
+.nav-links a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: 0;
+  height: 1.5px;
+  background: var(--amber);
+  transition: right 0.2s ease;
+}
+
+.nav-links a:hover { color: var(--text); }
+.nav-links a:hover::after { right: 0; }
+
+.nav-links a.nav-active {
+  color: var(--amber);
+}
+.nav-links a.nav-active::after { right: 0; }
 
 .nav-cta {
   color: var(--text) !important;
@@ -128,6 +151,7 @@ ul { list-style: none; }
   transition: border-color 0.15s ease, color 0.15s ease;
 }
 .nav-cta:hover { border-color: var(--amber); color: var(--amber) !important; }
+.nav-cta::after { display: none; } /* the button border already shows state, skip the underline here */
 
 /* ==========================================================================
    HERO
