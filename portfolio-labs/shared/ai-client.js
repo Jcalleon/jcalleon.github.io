@@ -16,12 +16,12 @@ const WORKER_URL = "https://portfolio-ai-proxy.jcalleon.workers.dev";
  * @param {string} opts.prompt - user prompt
  * @returns {Promise<{ok: boolean, text?: string, error?: string, message?: string}>}
  */
-async function callAI({ app, system, prompt }) {
+async function callAI({ app, system, prompt, maxTokens }) {
   try {
     const res = await fetch(WORKER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ app, system, prompt }),
+      body: JSON.stringify({ app, system, prompt, maxTokens }),
     });
 
     const data = await res.json();
