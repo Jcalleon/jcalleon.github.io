@@ -166,10 +166,25 @@ async function handleAIProxy(request, env, headers) {
     return json({ error: "Invalid JSON body" }, 400, headers);
   }
 
-  const { app, system, prompt } = body;
+  const { app, system, prompt, maxTokens } = body;
   if (!app || !prompt) {
     return json({ error: "Missing app or prompt" }, 400, headers);
   }
+
+  // Most features (SOC triage, Directory analysis) genuinely fit in the
+  // default MAX_TOKENS. A few — like the private resume builder, which
+  // generates a full multi-job structured resume as JSON — legitimately
+  // need much more, or the response truncates mid-JSON and silently fails
+  // to parse. Allow a caller to request more, but clamp it: this keeps
+  // any single caller from quietly turning a cheap feature into an
+  // expensive one, while letting a feature that genuinely needs the room
+  // actually have it.
+  const REQUEST_MAX_TOKENS_CEILING = 4000;
+  const effectiveMaxTokens = (
+    typeof maxTokens === "number" && maxTokens > 0
+      ? Math.min(maxTokens, REQUEST_MAX_TOKENS_CEILING)
+      : MAX_TOKENS
+  );
 
   const day = todayKey();
   const visitorId = request.headers.get("CF-Connecting-IP") || "unknown-visitor";
@@ -198,7 +213,7 @@ async function handleAIProxy(request, env, headers) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: MAX_TOKENS,
+        max_tokens: effectiveMaxTokens,
         system: system || undefined,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -257,9 +272,10 @@ async function signup(request, env, headers) {
   const isFirstUser = userCount.count === 0;
 
   await env.DB.prepare(
-    `INSERT INTO users (id, email, password_hash, salt, role, crm_role, soc_role, directory_role, approved, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, email, password_hash, salt, role, crm_role, soc_role, directory_role, network_lab_role, approved, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id, email, hash, salt,
+    isFirstUser ? "admin" : "agent",
     isFirstUser ? "admin" : "agent",
     isFirstUser ? "admin" : "agent",
     isFirstUser ? "admin" : "agent",
@@ -320,6 +336,7 @@ async function login(request, env, headers) {
       crm_role: user.crm_role,
       soc_role: user.soc_role,
       directory_role: user.directory_role,
+      network_lab_role: user.network_lab_role,
       is_superadmin: isSuperadmin(user),
     },
   }, 200, headers);
@@ -344,6 +361,7 @@ async function me(request, env, headers) {
       crm_role: user.crm_role,
       soc_role: user.soc_role,
       directory_role: user.directory_role,
+      network_lab_role: user.network_lab_role,
       is_superadmin: isSuperadmin(user),
     },
   }, 200, headers);
@@ -356,7 +374,7 @@ async function listPending(request, env, headers) {
   if (!isSuperadmin(user)) return json({ error: "unauthorized" }, 401, headers);
 
   const { results } = await env.DB.prepare(
-    `SELECT id, email, role, crm_role, soc_role, directory_role, created_at FROM users WHERE approved = 0 ORDER BY created_at ASC`
+    `SELECT id, email, role, crm_role, soc_role, directory_role, network_lab_role, created_at FROM users WHERE approved = 0 ORDER BY created_at ASC`
   ).all();
   return json({ pending: results }, 200, headers);
 }
@@ -367,7 +385,7 @@ async function listUsers(request, env, headers) {
   if (!isSuperadmin(user)) return json({ error: "unauthorized" }, 401, headers);
 
   const { results } = await env.DB.prepare(
-    `SELECT id, email, role, crm_role, soc_role, directory_role, approved, created_at FROM users ORDER BY created_at DESC`
+    `SELECT id, email, role, crm_role, soc_role, directory_role, network_lab_role, approved, created_at FROM users ORDER BY created_at DESC`
   ).all();
   return json({ users: results }, 200, headers);
 }
@@ -388,7 +406,7 @@ async function updateUser(id, request, env, headers) {
     return json({ error: "Invalid JSON body" }, 400, headers);
   }
 
-  const ROLE_COLUMN_BY_APP = { itsm: "role", crm: "crm_role", soc: "soc_role", directory: "directory_role" };
+  const ROLE_COLUMN_BY_APP = { itsm: "role", crm: "crm_role", soc: "soc_role", directory: "directory_role", network_lab: "network_lab_role" };
   const VALID_ROLES = ["admin", "agent", "none"];
 
   // The superadmin account itself can't be rejected or demoted through this
@@ -1354,6 +1372,170 @@ async function saveMachineAnalysis(id, request, env, headers) {
   return json({ machine: updated }, 200, headers);
 }
 
+// ============================================================
+// NETWORK LABS (Packet Tracer / GNS3 showcase)
+// ============================================================
+// Deliberately different access model from every other section: viewing
+// is fully public, no auth check at all — this is portfolio content meant
+// to be seen by visitors, the same as the Qualys certifications page.
+// Only authoring (create/edit/delete) is gated, on network_lab_role.
+
+// GET /network-labs — public. Returns only published labs by default;
+// pass include_drafts=1 (requires a valid authoring session) to see
+// unpublished work in progress.
+async function listNetworkLabs(request, env, headers) {
+  const url = new URL(request.url);
+  const includeDrafts = url.searchParams.get("include_drafts") === "1";
+
+  let whereClause = "WHERE published = 1";
+  if (includeDrafts) {
+    const user = await getSessionUser(request, env);
+    if (user && user.network_lab_role !== "none") {
+      whereClause = ""; // authorized author sees everything, drafts included
+    }
+  }
+
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM network_labs ${whereClause} ORDER BY created_at DESC`
+  ).all();
+
+  const labs = results.map((l) => ({ ...l, protocols: JSON.parse(l.protocols) }));
+  return json({ labs }, 200, headers);
+}
+
+// GET /network-labs/:id — public for published labs. A draft lab is only
+// visible to an authorized author, not to the public, even with a direct
+// link — a half-finished writeup shouldn't be reachable just by guessing
+// or sharing a URL before it's ready.
+async function getNetworkLab(id, request, env, headers) {
+  const lab = await env.DB.prepare(`SELECT * FROM network_labs WHERE id = ?`).bind(id).first();
+  if (!lab) return json({ error: "not_found" }, 404, headers);
+
+  if (!lab.published) {
+    const user = await getSessionUser(request, env);
+    if (!user || user.network_lab_role === "none") {
+      return json({ error: "not_found" }, 404, headers); // 404, not 401 — don't reveal a draft even exists
+    }
+  }
+
+  lab.protocols = JSON.parse(lab.protocols);
+  return json({ lab }, 200, headers);
+}
+
+// POST /network-labs — create a lab. Authoring-only.
+async function createNetworkLab(request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.network_lab_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const title = (body.title || "").trim();
+  const labType = body.labType;
+  const tool = body.tool;
+  const summary = (body.summary || "").trim();
+  const scenario = (body.scenario || "").trim();
+  const resolution = (body.resolution || "").trim();
+
+  if (!title) return json({ error: "Title is required" }, 400, headers);
+  if (!["build", "troubleshooting"].includes(labType)) return json({ error: "labType must be 'build' or 'troubleshooting'" }, 400, headers);
+  if (!["Packet Tracer", "GNS3"].includes(tool)) return json({ error: "tool must be 'Packet Tracer' or 'GNS3'" }, 400, headers);
+  if (!summary) return json({ error: "Summary is required" }, 400, headers);
+  if (!scenario) return json({ error: "Scenario is required" }, 400, headers);
+  if (!resolution) return json({ error: "Resolution is required" }, 400, headers);
+
+  const id = genId("LAB");
+  const now = new Date().toISOString();
+  const protocols = Array.isArray(body.protocols) ? body.protocols : [];
+
+  await env.DB.prepare(
+    `INSERT INTO network_labs (id, title, lab_type, tool, summary, topology_image_path, scenario, diagnosis, resolution, command_output, protocols, published, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    id, title, labType, tool, summary,
+    body.topologyImagePath || null, scenario, body.diagnosis || null, resolution,
+    body.commandOutput || null, JSON.stringify(protocols),
+    body.published === false ? 0 : 1, // defaults to published unless explicitly saved as a draft
+    now, now
+  ).run();
+
+  const created = await env.DB.prepare(`SELECT * FROM network_labs WHERE id = ?`).bind(id).first();
+  created.protocols = JSON.parse(created.protocols);
+  return json({ lab: created }, 201, headers);
+}
+
+// PATCH /network-labs/:id — edit a lab. Authoring-only. Accepts a partial
+// body — only supplied fields are updated, matching updateAlert's pattern
+// rather than requiring every field on every edit.
+async function updateNetworkLab(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.network_lab_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400, headers);
+  }
+
+  const current = await env.DB.prepare(`SELECT * FROM network_labs WHERE id = ?`).bind(id).first();
+  if (!current) return json({ error: "not_found" }, 404, headers);
+
+  const fieldMap = {
+    title: "title", labType: "lab_type", tool: "tool", summary: "summary",
+    topologyImagePath: "topology_image_path", scenario: "scenario", diagnosis: "diagnosis",
+    resolution: "resolution", commandOutput: "command_output",
+  };
+
+  const fields = [];
+  const values = [];
+  for (const [bodyKey, column] of Object.entries(fieldMap)) {
+    if (body[bodyKey] !== undefined) {
+      fields.push(`${column} = ?`);
+      values.push(body[bodyKey]);
+    }
+  }
+  if (body.protocols !== undefined) {
+    fields.push("protocols = ?");
+    values.push(JSON.stringify(Array.isArray(body.protocols) ? body.protocols : []));
+  }
+  if (body.published !== undefined) {
+    fields.push("published = ?");
+    values.push(body.published ? 1 : 0);
+  }
+
+  if (fields.length === 0) return json({ error: "No updatable fields supplied" }, 400, headers);
+
+  fields.push("updated_at = ?");
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  await env.DB.prepare(`UPDATE network_labs SET ${fields.join(", ")} WHERE id = ?`).bind(...values).run();
+
+  const updated = await env.DB.prepare(`SELECT * FROM network_labs WHERE id = ?`).bind(id).first();
+  updated.protocols = JSON.parse(updated.protocols);
+  return json({ lab: updated }, 200, headers);
+}
+
+// DELETE /network-labs/:id — authoring-only.
+async function deleteNetworkLab(id, request, env, headers) {
+  const user = await getSessionUser(request, env);
+  if (!user) return json({ error: "unauthorized" }, 401, headers);
+  if (user.network_lab_role === "none") return json({ error: "unauthorized" }, 401, headers);
+
+  const current = await env.DB.prepare(`SELECT id FROM network_labs WHERE id = ?`).bind(id).first();
+  if (!current) return json({ error: "not_found" }, 404, headers);
+
+  await env.DB.prepare(`DELETE FROM network_labs WHERE id = ?`).bind(id).run();
+  return json({ message: "Lab deleted" }, 200, headers);
+}
+
 // Generates a username from a display name the same way the seed data's
 // usernames look (e.g. "Jane Doe" -> "jdoe"... but the existing convention
 // is actually "first initial + last name" with NO separator for regular
@@ -1524,6 +1706,8 @@ export default {
     if (path === "/directory/groups" && request.method === "GET") return listGroups(request, env, headers);
     if (path === "/directory/groups" && request.method === "POST") return createGroup(request, env, headers);
     if (path === "/directory/machines" && request.method === "GET") return listMachines(request, env, headers);
+    if (path === "/network-labs" && request.method === "GET") return listNetworkLabs(request, env, headers);
+    if (path === "/network-labs" && request.method === "POST") return createNetworkLab(request, env, headers);
 
     const ticketMatch = path.match(/^\/tickets\/([^\/]+)$/);
     if (ticketMatch && request.method === "GET") return getTicket(ticketMatch[1], request, env, headers);
@@ -1568,6 +1752,11 @@ export default {
 
     const machineMatch = path.match(/^\/directory\/machines\/([^\/]+)$/);
     if (machineMatch && request.method === "GET") return getMachine(machineMatch[1], request, env, headers);
+
+    const networkLabMatch = path.match(/^\/network-labs\/([^\/]+)$/);
+    if (networkLabMatch && request.method === "GET") return getNetworkLab(networkLabMatch[1], request, env, headers);
+    if (networkLabMatch && request.method === "PATCH") return updateNetworkLab(networkLabMatch[1], request, env, headers);
+    if (networkLabMatch && request.method === "DELETE") return deleteNetworkLab(networkLabMatch[1], request, env, headers);
 
     return json({ error: "not_found" }, 404, headers);
   },
