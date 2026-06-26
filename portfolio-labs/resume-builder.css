@@ -3,14 +3,14 @@
 .rb-main {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 24px 32px 64px;
+  padding: 16px 16px 48px;
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
+  gap: 16px;
 }
 
 .rb-input-panel {
-  padding: 20px;
+  padding: 16px;
 }
 
 .rb-input-header h2 {
@@ -21,13 +21,15 @@
 
 .rb-jd-textarea {
   width: 100%;
-  min-height: 220px;
+  min-height: 280px;
   margin-top: 12px;
   font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .rb-output-panel {
-  padding: 20px;
+  padding: 16px;
 }
 
 .rb-output-header {
@@ -47,6 +49,10 @@
 .rb-output-actions {
   display: flex;
   gap: 8px;
+  width: 100%;
+}
+.rb-output-actions button {
+  flex: 1;
 }
 
 .rb-field-group {
@@ -64,14 +70,16 @@
 
 .rb-summary-input {
   width: 100%;
-  min-height: 80px;
+  min-height: 100px;
   font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .rb-job-block {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 14px;
+  padding: 16px;
   margin-bottom: 16px;
   background: var(--panel-raised);
 }
@@ -80,12 +88,12 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .rb-job-title-input {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .rb-job-meta {
@@ -97,7 +105,7 @@
 .rb-bullets {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .rb-bullet-row {
@@ -108,8 +116,9 @@
 
 .rb-bullet-input {
   flex: 1;
-  min-height: 44px;
-  font-size: 13px;
+  min-height: 56px;
+  font-size: 14px;
+  line-height: 1.45;
   font-family: var(--font-sans);
 }
 
@@ -118,13 +127,24 @@
   border: 1px solid var(--border);
   color: var(--text-dim);
   border-radius: var(--radius-sm);
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
 }
 .rb-bullet-remove:hover { color: var(--status-critical); border-color: var(--status-critical); }
+
+/* Above ~640px, there's enough room for generous padding and side-by-side
+   header/actions rows without things feeling cramped — this is a real,
+   deliberate step up, not just "whatever's left over" below the
+   two-column breakpoint. */
+@media (min-width: 640px) {
+  .rb-main { padding: 24px 32px 64px; gap: 24px; }
+  .rb-input-panel, .rb-output-panel { padding: 20px; }
+  .rb-output-actions { width: auto; }
+  .rb-output-actions button { flex: initial; }
+}
 
 @media (min-width: 900px) {
   .rb-main {
