@@ -96,7 +96,12 @@ ${ALL_CV_CONTENT}
 REAL CONTACT/EDUCATION/CERTIFICATION FACTS (use exactly as given, do not alter):
 ${JSON.stringify(REAL_FACTS, null, 2)}`;
 
-  const res = await callAI({ app: "resumebuilder", system, prompt });
+  // The default Worker-wide limit (400 tokens) is sized for short
+  // SOC/Directory analyses — nowhere near enough for a full 5-job
+  // structured resume as JSON, which realistically needs ~1,100 tokens at
+  // worst case. Requesting 2000 leaves real margin without approaching
+  // the Worker's hard per-request ceiling.
+  const res = await callAI({ app: "resumebuilder", system, prompt, maxTokens: 2000 });
 
   activeBtn.disabled = false;
   activeBtn.textContent = originalLabel;
@@ -126,9 +131,18 @@ function parseResumeJson(text) {
   cleaned = cleaned.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
   try {
     const data = JSON.parse(cleaned);
-    if (!data.summary || !Array.isArray(data.jobs)) return null;
+    if (!data.summary || !Array.isArray(data.jobs)) {
+      console.error("Parsed JSON but missing required fields. Parsed object:", data);
+      return null;
+    }
     return data;
-  } catch {
+  } catch (err) {
+    // Swallowing this silently is exactly how a real parsing bug becomes
+    // undebuggable — log both the actual error and the raw text so a
+    // failure can be diagnosed from the browser console instead of just
+    // re-tried blindly.
+    console.error("Resume JSON parse failed:", err.message);
+    console.error("Raw response text was:", text);
     return null;
   }
 }
