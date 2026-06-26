@@ -1,3 +1,84 @@
+// ===========================================================================
+// ABOUT SECTION — LENS RANDOMIZATION
+// One of 6 discipline lenses is picked at random on each page load. All 3
+// Q&A pairs swap together (never independently) so the section reads as
+// one coherent version of the person, not a mismatched mix. Every word
+// below is pulled directly from the corresponding real, fact-checked CV —
+// nothing here is AI-generated or invented at runtime; this is a fixed,
+// pre-written content bank, randomly selected from, not generated.
+// ===========================================================================
+const ABOUT_LENSES = {
+  cybersecurity: {
+    label: "Cybersecurity",
+    q1: "Why security, specifically?",
+    a1: "Because I started in help desk, where you only ever see the aftermath of something going wrong. Security is the part of IT where you get to work upstream of that, finding the gap before someone else finds it for you. I like that it rewards paranoia with actual data: a vulnerability scan, a detection rule, a hardening baseline either holds up or it doesn't. There's no ambiguity in whether the work succeeded.",
+    q2: "What's a problem you're proud of solving?",
+    a2: "At RRMS, our exploitable vulnerability count across the Windows and Linux fleet was high enough that the backlog itself had become the risk. There was too much noise to know what actually mattered. I led a CIS & NIST-aligned hardening initiative across the environment, prioritized by actual exploitability rather than raw CVSS score, and paired it with PowerShell and Qualys API automation so remediation validation didn't depend on someone manually re-checking 5,000+ systems. That combination, better prioritization plus automated verification, took exploitable vulnerabilities down 82%. The part I'm proudest of isn't the number, it's that the process kept working after I built it, because it didn't depend on me running it by hand.",
+    q3: "What kind of team are you looking for?",
+    a3: "A team that treats security as an engineering discipline, not a checklist, where I'm building and improving controls instead of just generating compliance reports. I do my best work with ownership over a real piece of the environment, room to automate the repetitive parts of the job, and colleagues who'll push back on my approach when they have a better one. Given my background, I'm equally comfortable being the security specialist on an infrastructure-heavy team or the infrastructure-literate voice on a security team. I'd rather solve the actual problem than stay inside a narrow lane.",
+  },
+  networking: {
+    label: "Network Engineering",
+    q1: "Why networking, specifically?",
+    a1: "Because almost everything else in IT sits on top of it and inherits its problems. A misconfigured VLAN or a bad firewall rule doesn't announce itself, it just makes something else look broken instead. I like that networking rewards actually understanding how traffic moves rather than guessing, and that a well-built network is invisible: nobody notices it, because it just works. That's the version of the job I want, the one where things don't break.",
+    q2: "What's a problem you're proud of solving?",
+    a2: "At InSync, I designed and deployed a full Meraki WAN setup for a client site in Ontario, including a mesh of IPSec Phase 1/2 tunnels, SMTP relay for printing, and VLAN segmentation for a multi-tenant office, all in one build. The part I'm proudest of is the same site later needed a perimeter firewall swap, Sophos to pfSense, and the segmentation and tunnel design held up through the migration without needing to be re-architected, because it was built right the first time, not just made to work for the day.",
+    q3: "What kind of team are you looking for?",
+    a3: "A team where network design is treated as real engineering, not just \"plug it in and hope,\" and where I have room to build things that hold up under a future change instead of just the change in front of me. I do my best work owning real infrastructure end to end, from WAN design down to the firewall migration two years later, and I want colleagues who care about that same kind of durability. I'm equally comfortable as the network specialist on a broader infrastructure team or the infrastructure-literate voice on a security team that needs someone who actually understands what the traffic is doing.",
+  },
+  infrastructure: {
+    label: "Infrastructure & Systems",
+    q1: "Why infrastructure, specifically?",
+    a1: "Because it's the part of IT where \"it works\" has to mean it works for years, not just today. I like building the thing other systems depend on, whether that's a patch-compliance pipeline, a DR plan, or a server build standard, and then watching it keep holding up long after I've moved on to the next problem. There's a particular kind of satisfaction in a system that's boring because it's reliable.",
+    q2: "What's a problem you're proud of solving?",
+    a2: "At The Smart Circle, patch compliance across the environment was sitting at 18% when I started, a real, immediate risk. I designed and rolled out an enterprise vulnerability management program using Tenable and KACE, got compliance to 90% within about 6-8 weeks, and built scripted package deployment so future patching didn't depend on manual work. I'm proudest that the 90% wasn't a one-time push; the pipeline I built kept compliance there afterward, because the process itself was the fix, not a single cleanup effort.",
+    q3: "What kind of team are you looking for?",
+    a3: "A team that wants infrastructure built to last, not patched together to survive the next audit. I do my best work owning a real piece of the environment, from servers and DR planning down to the deployment pipelines that keep it all running, and I want the room to build things properly the first time. I'm comfortable being the systems specialist on a security-focused team or the infrastructure backbone for a team that's mostly focused elsewhere, since most other disciplines end up depending on this one working.",
+  },
+  helpdesk: {
+    label: "Help Desk & Support",
+    q1: "Why support, specifically?",
+    a1: "Because it's where I learned that almost every recurring problem has a root cause that's fixable, if you bother to look for it instead of just closing the ticket. I started here, supporting 1,000+ users, and the thing I'm still proud of is realizing that documentation and a good FAQ could cut repeat issues dramatically instead of just answering the same question forever. That instinct, find the actual cause, never left.",
+    q2: "What's a problem you're proud of solving?",
+    a2: "At Apple, Keeco, SilverVentures, and Apogee, I was handling 30-40 tickets a day at peak across a 1,000+ user base, and a lot of that volume was the same handful of issues showing up over and over. I built out standardized documentation and FAQ procedures specifically targeting those repeat categories, and it improved technical support efficiency by 500%. I'm proudest that it wasn't a trick, it was just taking the time to actually fix the underlying confusion instead of resolving the same ticket for the hundredth time.",
+    q3: "What kind of team are you looking for?",
+    a3: "A team that sees support as the first line of actually understanding what's broken in the environment, not just a queue to clear. I do my best work when I'm trusted to fix root causes, not just symptoms, and when there's room to build the documentation or automation that prevents the next ticket instead of just answering it. I'm comfortable being the support specialist who escalates the right things at the right time, or the technical voice on a team that needs someone who's actually sat in the seat fielding the real-world fallout of a bad rollout.",
+  },
+  projectmanagement: {
+    label: "Project Management",
+    q1: "Why project ownership, specifically?",
+    a1: "Because the work I care about most, hardening an environment, migrating a firewall, rolling out MDM across thousands of devices, only succeeds if someone actually owns it end to end: scope, timeline, the people involved, and the follow-through after launch. I like being that person. A good technical solution that never gets delivered isn't actually a solution.",
+    q2: "What's a problem you're proud of solving?",
+    a2: "At RRMS, I owned the Intune deployment project end to end, configuration, domain join, MDM enrollment, policy push, and package deployment, as a self-contained initiative inside a much larger role. Around the same time I was leading the enterprise CIS hardening initiative across 6 teams and 60+ people. I'm proudest of running both well at once: knowing when a project needed me hands-on versus when it just needed clear scope and the right people coordinating, without either one stalling the other.",
+    q3: "What kind of team are you looking for?",
+    a3: "A team that wants someone who can scope a real project and actually deliver it, not just track tickets in a board. I do my best work owning something concrete, a migration, a rollout, a hardening initiative, from the first conversation through the after-action review, and I want the latitude to coordinate across teams when a project needs it. I'm comfortable being the project owner on a technical team that needs someone who can both plan and actually do the hands-on work, not just one or the other.",
+  },
+  cloud: {
+    label: "Cloud & Automation",
+    q1: "Why automation, specifically?",
+    a1: "Because manual work doesn't scale and it doesn't stay correct, someone eventually skips a step or does it slightly differently the tenth time. I like building the thing that does the repetitive part reliably, every time, so the humans involved can focus on the parts that actually need judgment. The best automation is the kind that's still quietly working months after you stopped thinking about it.",
+    q2: "What's a problem you're proud of solving?",
+    a2: "At RRMS, I automated vulnerability remediation validation across 5,000+ systems using PowerShell and the Qualys API, which eliminated about 30 hours a week of someone manually re-checking whether fixes actually held. I paired that with Terraform-managed Azure infrastructure, covering tagging, conditional access, and security extensions, with state secured in storage blobs, and an Ansible layer pushing configuration across the broader environment. I'm proudest that all three pieces, the validation pipeline, the Terraform-managed cloud resources, and the Ansible rollout, kept running correctly without needing me to babysit them.",
+    q3: "What kind of team are you looking for?",
+    a3: "A team that wants infrastructure as code and automation treated as the default, not a nice-to-have bolted on later. I do my best work building the pipeline that replaces a recurring manual task, whether that's validation, deployment, or configuration management, and I want room to actually own that automation rather than just request it from someone else. I'm comfortable being the automation specialist on a cloud-focused team or the infrastructure-as-code voice on a security team that needs its manual processes turned into something repeatable.",
+  },
+};
+
+(function applyRandomLens() {
+  const keys = Object.keys(ABOUT_LENSES);
+  const chosen = ABOUT_LENSES[keys[Math.floor(Math.random() * keys.length)]];
+
+  const labelEl = document.getElementById("lens-label");
+  if (labelEl) labelEl.textContent = chosen.label;
+
+  for (const n of [1, 2, 3]) {
+    const qEl = document.getElementById(`qa-q-${n}`);
+    const aEl = document.getElementById(`qa-a-${n}`);
+    if (qEl) qEl.textContent = chosen[`q${n}`];
+    if (aEl) aEl.textContent = chosen[`a${n}`];
+  }
+})();
+
 // Placeholder click feedback — flash the element so it's obvious what's a stand-in
 document.querySelectorAll('[data-placeholder]').forEach(el => {
   el.addEventListener('click', (e) => {
