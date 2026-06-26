@@ -38,7 +38,8 @@
     .tile-directory .launcher-tile-mark { color: #C4B5FD; }
     .launcher-tile-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
     .launcher-empty { text-align: center; color: var(--text-dim); font-size: 13px; padding: var(--space-6) 0; }
-    .launcher-admin-link { display: block; text-align: center; margin-top: var(--space-6); font-size: 12px; }
+    .launcher-admin-link { display: block; text-align: center; margin-top: var(--space-3); font-size: 12px; }
+    .launcher-admin-link:first-child { margin-top: var(--space-6); }
     .launcher-footer { text-align: center; margin-top: var(--space-5); }
   </style>
 </head>
@@ -120,7 +121,8 @@
 
       if (user.is_superadmin) {
         document.getElementById("launcher-admin-area").innerHTML = `
-          <a class="launcher-admin-link" href="admin/index.html">⚙ Open admin panel →</a>`;
+          <a class="launcher-admin-link" href="admin/index.html">⚙ Open admin panel →</a>
+          <a class="launcher-admin-link" href="resume-builder.html">✦ Resume builder (private) →</a>`;
       }
     })();
 
