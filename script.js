@@ -64,9 +64,436 @@ const ABOUT_LENSES = {
   },
 };
 
+const EXPERIENCE_LENSES = {
+  "cybersecurity": {
+    "1": {
+      "title": "Cybersecurity Engineer",
+      "bullets": [
+        "Led enterprise-wide CIS hardening across Windows and Linux systems, reducing exploitable vulnerabilities by <strong>82%</strong>",
+        "Built and implemented SIEM-integrated detection pipelines across Splunk, ELK, and Graylog",
+        "Integrated Cortex XDR, CrowdStrike, SentinelOne, and ESET into a centralized detection and response architecture",
+        "Automated vulnerability remediation validation using PowerShell and Qualys APIs across <strong>5,000+</strong> systems",
+        "Built and deployed phishing simulation, email security, and DLP programs aligned to enterprise compliance requirements"
+      ],
+      "stack": [
+        "Splunk",
+        "ELK",
+        "Graylog",
+        "CrowdStrike",
+        "SentinelOne",
+        "Cortex XDR",
+        "PowerShell",
+        "Qualys"
+      ]
+    },
+    "2": {
+      "title": "IT Infrastructure Consultant &amp; Independent Practice",
+      "bullets": [
+        "Maintain an active detection-engineering lab integrating ELK and Splunk-based SIEM tooling",
+        "Run Intune MDM across a lab environment modeling enterprise endpoint policy",
+        "Provide freelance cybersecurity advisory to <strong>4+</strong> small-business clients"
+      ],
+      "stack": [
+        "ELK",
+        "Splunk",
+        "Intune"
+      ]
+    },
+    "3": {
+      "title": "System Administrator <span class=\"dim\">(Security-Focused)</span>",
+      "bullets": [
+        "Designed an enterprise vulnerability management program using Tenable and KACE, raising patch compliance from <strong>18%</strong> to <strong>90%</strong>",
+        "Led migration of <strong>1,500+</strong> endpoints to CrowdStrike Falcon in one month, improving detection from weekly to real-time",
+        "Implemented IAM and credential management across <strong>500+</strong> users and <strong>1,000+</strong> accounts (Okta, Atlassian, 1Password)",
+        "Designed disaster recovery and business continuity plans covering <strong>150</strong> critical devices, with an RTO under 1 day"
+      ],
+      "stack": [
+        "Tenable",
+        "KACE",
+        "CrowdStrike Falcon",
+        "Okta",
+        "1Password"
+      ]
+    },
+    "4": {
+      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "bullets": [
+        "Secured <strong>10,000+</strong> endpoints across a mix of client environments, implementing layered firewall and VLAN/VPN segmentation controls",
+        "Delivered vulnerability remediation across the full MSP client portfolio",
+        "Standardized security configuration baselines across the client base, reducing configuration-drift incidents",
+        "Brought new MSP clients to security baseline compliance via a standardized 3-day onboarding process"
+      ],
+      "stack": [
+        "Firewall policy",
+        "VLAN/VPN",
+        "BitLocker",
+        "Jamf",
+        "Intune"
+      ]
+    },
+    "5": {
+      "title": "IT &amp; Security Support",
+      "bullets": [
+        "Managed secure identity lifecycle for <strong>700+</strong> users with no significant access-control incidents across the tenure",
+        "Enforced endpoint security baseline via Active Directory across the supported device fleet",
+        "Identified and escalated security-relevant issues to appropriate teams during day-to-day help-desk triage"
+      ],
+      "stack": [
+        "Active Directory",
+        "Identity lifecycle"
+      ]
+    }
+  },
+  "networking": {
+    "1": {
+      "title": "Network &amp; Infrastructure Engineer",
+      "bullets": [
+        "Led a full Cisco infrastructure refresh, cutting unplanned downtime from multiple hours to minutes per incident",
+        "Implemented PXE boot with Samba to automate server and workstation rollout and imaging at scale",
+        "Built and configured network devices and private network segments for internal demo and lab environments",
+        "Worked with RouterOS (MikroTik) to support an externally-facing network segment",
+        "Coordinated with network teams to deploy SIEM log collection across <strong>5,000+</strong> endpoints, requiring full network-level visibility"
+      ],
+      "stack": [
+        "Cisco",
+        "RouterOS",
+        "PXE",
+        "Samba",
+        "Cortex XDR",
+        "CrowdStrike",
+        "SentinelOne"
+      ]
+    },
+    "2": {
+      "title": "IT Infrastructure Consultant &amp; Independent Practice",
+      "bullets": [
+        "Maintain network infrastructure for a lab environment supporting <strong>20-50</strong> simulated endpoints, used for ongoing skills development and scenario testing"
+      ],
+      "stack": [
+        "Lab networking",
+        "Simulated topologies"
+      ]
+    },
+    "3": {
+      "title": "Network &amp; Systems Administrator",
+      "bullets": [
+        "Led the design and deployment of a full Meraki WAN setup for a satellite office in Ontario, Canada, including IPSec Phase 1/2 tunnel mesh, SMTP relay, and multi-tenant VLAN segmentation",
+        "Migrated that same office\u2019s perimeter firewall from Sophos to pfSense, with the original design holding up through the migration unchanged",
+        "Administered network-adjacent infrastructure across <strong>100-200</strong> critical devices, including Cisco stacks and domain controllers",
+        "Worked extensively with Azure Network Security Groups and Load Balancers"
+      ],
+      "stack": [
+        "Meraki",
+        "pfSense",
+        "Cisco",
+        "Azure NSGs",
+        "IPSec"
+      ]
+    },
+    "4": {
+      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "bullets": [
+        "Secured <strong>10,000+</strong> endpoints across a mix of client environments \u2014 from 2-device sites to a single <strong>1,000+</strong> device enterprise contract",
+        "Maintained <strong>99.999%</strong> network uptime across managed client environments, with average incident resolution time of 2-4 hours",
+        "Reduced new-client network-onboarding time to 3 days via a standardized process",
+        "Standardized firewall, router, and switch configuration baselines across the client base"
+      ],
+      "stack": [
+        "Firewall",
+        "Routing",
+        "Switching",
+        "BitLocker",
+        "Jamf",
+        "Intune"
+      ]
+    },
+    "5": {
+      "title": "IT Support",
+      "bullets": [
+        "Supported network connectivity troubleshooting as part of frontline IT support for <strong>1,000+</strong> users",
+        "At Apogee, an ISP, troubleshot end-user device connectivity to the network as a core part of the role"
+      ],
+      "stack": [
+        "Network troubleshooting",
+        "Connectivity support"
+      ]
+    }
+  },
+  "infrastructure": {
+    "1": {
+      "title": "Infrastructure &amp; Systems Engineer",
+      "bullets": [
+        "Automated remediation validation across <strong>5,000+</strong> systems via PowerShell and Qualys APIs, cutting manual work by ~30 hours per week",
+        "Hardened the Windows and Linux fleet enterprise-wide, reducing exploitable vulnerabilities by <strong>82%</strong>",
+        "Built and maintained SIEM infrastructure (Splunk, ELK, Graylog) ingesting <strong>100,000+</strong> events per day",
+        "Implemented the full Intune stack end to end \u2014 device configuration, domain join, MDM enrollment, policy push, and package deployment",
+        "Orchestrated an Ansible environment to push updates and configuration changes across the broader infrastructure footprint"
+      ],
+      "stack": [
+        "PowerShell",
+        "Qualys",
+        "Splunk",
+        "ELK",
+        "Graylog",
+        "Intune",
+        "Ansible"
+      ]
+    },
+    "2": {
+      "title": "IT Infrastructure Consultant &amp; Independent Practice",
+      "bullets": [
+        "Maintain lab infrastructure running detection pipelines and Intune MDM across <strong>10-50</strong> lab devices, separate from a <strong>3,000+</strong> device production Intune migration delivered for a client"
+      ],
+      "stack": [
+        "Intune",
+        "Detection pipelines"
+      ]
+    },
+    "3": {
+      "title": "System Administrator <span class=\"dim\">(Security-Focused)</span>",
+      "bullets": [
+        "Designed an enterprise vulnerability management program (Tenable + KACE), raising patch compliance from <strong>18%</strong> to <strong>90%</strong>",
+        "Administered <strong>35</strong> Windows and Linux servers within a broader <strong>100-200</strong> device infrastructure footprint",
+        "Designed disaster recovery and business continuity plans covering <strong>100-200</strong> critical devices, with an RTO under 1 day",
+        "Led the <strong>1,500+</strong> endpoint CrowdStrike Falcon migration in one month, improving detection from weekly to real-time"
+      ],
+      "stack": [
+        "Tenable",
+        "KACE",
+        "CrowdStrike Falcon",
+        "Windows Server",
+        "Linux"
+      ]
+    },
+    "4": {
+      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "bullets": [
+        "Delivered infrastructure hardening across a client base ranging from 2-device sites to a single <strong>1,000+</strong> device enterprise contract",
+        "Secured <strong>10,000+</strong> endpoints total, maintaining infrastructure reliability across a mixed-scale client portfolio",
+        "Standardized infrastructure configuration baselines across the client base to reduce drift-related incidents"
+      ],
+      "stack": [
+        "Infrastructure hardening",
+        "Configuration management"
+      ]
+    },
+    "5": {
+      "title": "IT Support",
+      "bullets": [
+        "Maintained endpoint infrastructure (<strong>700+</strong> identity records) across Active Directory for a <strong>1,000+</strong> user base",
+        "Supported infrastructure-adjacent projects including office moves and server rack decommissions"
+      ],
+      "stack": [
+        "Active Directory",
+        "Endpoint infrastructure"
+      ]
+    }
+  },
+  "helpdesk": {
+    "1": {
+      "title": "Security Incident Support Lead",
+      "bullets": [
+        "Provided security-incident guidance to internal teams as part of the incident-response process, across <strong>6+</strong> coordinating teams",
+        "Built SIEM-integrated detection pipelines that frontline teams relied on to triage and escalate correctly"
+      ],
+      "stack": [
+        "Splunk",
+        "ELK",
+        "Graylog",
+        "Cortex XDR"
+      ]
+    },
+    "2": {
+      "title": "IT Infrastructure Consultant &amp; Independent Practice",
+      "bullets": [
+        "Provide freelance IT and infrastructure advisory to <strong>4+</strong> small-business clients, including a full <strong>3,000+</strong> device Intune migration for one client"
+      ],
+      "stack": [
+        "Intune",
+        "Client support"
+      ]
+    },
+    "3": {
+      "title": "Systems Administrator",
+      "bullets": [
+        "Provided escalation support tied to the IAM rollout (Okta, Atlassian, 1Password) across <strong>500+</strong> users during the transition"
+      ],
+      "stack": [
+        "Okta",
+        "Atlassian",
+        "1Password"
+      ]
+    },
+    "4": {
+      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "bullets": [
+        "Resolved client support incidents across a 10-30 client MSP portfolio, with average incident resolution time of 2-4 hours",
+        "Delivered a standardized 3-day client onboarding process (BitLocker, Jamf/Intune enrollment)",
+        "Supported clients ranging from 2-device small offices to a single <strong>1,000+</strong> device enterprise contract"
+      ],
+      "stack": [
+        "BitLocker",
+        "Jamf",
+        "Intune",
+        "Client support"
+      ]
+    },
+    "5": {
+      "title": "IT &amp; Security Support",
+      "bullets": [
+        "Supported a <strong>1,000+</strong> user base, handling 30-40 tickets per day at peak with a <strong>25%</strong> first-call resolution rate",
+        "Improved technical support efficiency by <strong>500%</strong> through standardized documentation and FAQ procedures",
+        "Managed identity lifecycle for <strong>700+</strong> users, processing ~5 changes per month",
+        "Maintained a customer satisfaction score of <strong>95%</strong> based on post-resolution feedback",
+        "At Apogee, an ISP, supported end-user connectivity troubleshooting where the network itself was the product"
+      ],
+      "stack": [
+        "Active Directory",
+        "Documentation",
+        "Ticketing"
+      ]
+    }
+  },
+  "projectmanagement": {
+    "1": {
+      "title": "Cybersecurity Program Lead",
+      "bullets": [
+        "Led the enterprise CIS hardening initiative as a discrete project, coordinating across <strong>6</strong> teams and <strong>60+</strong> people, delivering an <strong>82%</strong> reduction in exploitable vulnerabilities",
+        "Managed the SIEM pipeline build (Splunk, ELK, Graylog) as a multi-stakeholder infrastructure project, ingesting <strong>100,000+</strong> events per day at completion",
+        "Owned the Intune deployment project end to end \u2014 configuration, domain join, MDM enrollment, policy push, and package deployment",
+        "Led the project connecting on-prem identity to Entra ID and Intune, including scoping and executing the underlying migration"
+      ],
+      "stack": [
+        "Splunk",
+        "ELK",
+        "Graylog",
+        "Intune",
+        "Entra ID",
+        "Ansible",
+        "Terraform"
+      ]
+    },
+    "2": {
+      "title": "Independent IT Consultant",
+      "bullets": [
+        "Led a <strong>3,000+</strong> device Intune migration for a freelance client end to end \u2014 scoping, package deployment automation, configuration, and user-profile/data migration \u2014 as a fully self-owned engagement from kickoff through completion",
+        "Manage freelance client engagements end to end for <strong>4+</strong> clients, each independently scoped and delivered"
+      ],
+      "stack": [
+        "Intune",
+        "Project delivery"
+      ]
+    },
+    "3": {
+      "title": "Infrastructure Program Lead",
+      "bullets": [
+        "Led the design and deployment of a full Meraki WAN setup for a satellite office in Ontario, Canada, as a self-contained project",
+        "Managed the firewall migration project (Sophos to pfSense) for that same office once operational",
+        "Led the <strong>1,500+</strong> endpoint CrowdStrike Falcon migration as a project, delivered within a 1-month timeline",
+        "Ran the vulnerability-management-program rollout (Tenable + KACE), taking patch compliance from <strong>18%</strong> to <strong>90%</strong> within 6-8 weeks"
+      ],
+      "stack": [
+        "Meraki",
+        "pfSense",
+        "CrowdStrike",
+        "Tenable",
+        "KACE"
+      ]
+    },
+    "4": {
+      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "bullets": [
+        "Coordinated onboarding projects for new MSP clients, each delivered within a standardized 3-day timeline",
+        "Coordinated multi-client rollout projects including mergers and a database-administration migration"
+      ],
+      "stack": [
+        "Client onboarding",
+        "Multi-client coordination"
+      ]
+    },
+    "5": {
+      "title": "IT &amp; Security Support",
+      "bullets": [
+        "Coordinated office moves and server rack decommissions as discrete projects affecting the broader <strong>1,000+</strong> user base"
+      ],
+      "stack": [
+        "Project coordination"
+      ]
+    }
+  },
+  "cloud": {
+    "1": {
+      "title": "Cloud Security &amp; Automation Engineer",
+      "bullets": [
+        "Automated vulnerability remediation validation via PowerShell and Qualys APIs across <strong>5,000+</strong> systems, eliminating ~30 hours per week of manual work",
+        "Administered Azure managed identities, conditional access policies, and enterprise application SSO",
+        "Built Terraform automation covering resource tagging, conditional access parameters, access control, and security extensions, with state secured in storage blobs",
+        "Led integration work connecting on-prem identity to Entra ID and Intune, including the underlying migration",
+        "Orchestrated an Ansible environment to push configuration and updates across the broader infrastructure"
+      ],
+      "stack": [
+        "Azure",
+        "Terraform",
+        "Ansible",
+        "Entra ID",
+        "Intune",
+        "PowerShell",
+        "Qualys"
+      ]
+    },
+    "2": {
+      "title": "Cloud &amp; Automation Consultant",
+      "bullets": [
+        "Led a <strong>3,000+</strong> device Intune migration for a freelance client, including full automation of package deployment, configuration, and user-profile/data migration",
+        "Run Intune MDM across a separate <strong>10-50</strong> device lab environment for ongoing skills development"
+      ],
+      "stack": [
+        "Intune",
+        "MDM",
+        "Automation"
+      ]
+    },
+    "3": {
+      "title": "System Administrator <span class=\"dim\">(Security-Focused)</span>",
+      "bullets": [
+        "Implemented cloud-based IAM (Okta) as part of the credential-management rollout across <strong>500+</strong> users and <strong>1,000+</strong> accounts",
+        "Worked with Azure Network Security Groups, Azure CLI, and Azure Load Balancing"
+      ],
+      "stack": [
+        "Okta",
+        "Azure NSGs",
+        "Azure CLI",
+        "Azure Load Balancer"
+      ]
+    },
+    "4": {
+      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "bullets": [
+        "Supported Citrix environments hosted in Azure as part of client infrastructure management",
+        "Built basic automation around Azure CLI and scripted backups for client environments"
+      ],
+      "stack": [
+        "Citrix",
+        "Azure",
+        "Azure CLI"
+      ]
+    },
+    "5": {
+      "title": "IT Support",
+      "bullets": [
+        "Supported Azure-hosted business applications (e.g., Adobe Creative Cloud and similar SaaS tools) as part of standard end-user support"
+      ],
+      "stack": [
+        "Azure-hosted SaaS support"
+      ]
+    }
+  }
+};
+
 (function applyRandomLens() {
   const keys = Object.keys(ABOUT_LENSES);
-  const chosen = ABOUT_LENSES[keys[Math.floor(Math.random() * keys.length)]];
+  const chosenKey = keys[Math.floor(Math.random() * keys.length)];
+  const chosen = ABOUT_LENSES[chosenKey];
 
   const labelEl = document.getElementById("lens-label");
   if (labelEl) labelEl.textContent = chosen.label;
@@ -76,6 +503,29 @@ const ABOUT_LENSES = {
     const aEl = document.getElementById(`qa-a-${n}`);
     if (qEl) qEl.textContent = chosen[`q${n}`];
     if (aEl) aEl.textContent = chosen[`a${n}`];
+  }
+
+  // Experience section uses the SAME chosen lens key, never picked
+  // independently — per the "whole page reads as one coherent version of
+  // the person" decision. Bullets/titles contain real <strong> tags
+  // around numbers, so this uses innerHTML, not textContent — every
+  // string in EXPERIENCE_LENSES was authored directly (not built from
+  // unescaped user input), so this is safe here the way it would NOT be
+  // for arbitrary external data.
+  const expLensData = (typeof EXPERIENCE_LENSES !== "undefined") ? EXPERIENCE_LENSES[chosenKey] : null;
+  if (expLensData) {
+    for (const jobNum of [1, 2, 3, 4, 5]) {
+      const job = expLensData[jobNum];
+      if (!job) continue;
+
+      const titleEl = document.getElementById(`exp-title-${jobNum}`);
+      const listEl = document.getElementById(`exp-list-${jobNum}`);
+      const stackEl = document.getElementById(`exp-stack-${jobNum}`);
+
+      if (titleEl) titleEl.innerHTML = job.title;
+      if (listEl) listEl.innerHTML = job.bullets.map((b) => `<li>${b}</li>`).join("");
+      if (stackEl) stackEl.innerHTML = job.stack.map((s) => `<span>${s}</span>`).join("");
+    }
   }
 })();
 
