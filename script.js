@@ -529,6 +529,38 @@ const EXPERIENCE_LENSES = {
   }
 })();
 
+// ===========================================================================
+// RESUME DOWNLOAD DROPDOWN
+// ===========================================================================
+(function () {
+  const dropdown = document.getElementById("resume-dropdown");
+  const trigger = document.getElementById("resume-dropdown-trigger");
+  if (!dropdown || !trigger) return;
+
+  function closeDropdown() {
+    dropdown.classList.remove("open");
+    trigger.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleDropdown() {
+    const isOpen = dropdown.classList.toggle("open");
+    trigger.setAttribute("aria-expanded", String(isOpen));
+  }
+
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleDropdown();
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!dropdown.contains(e.target)) closeDropdown();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeDropdown();
+  });
+})();
+
 // Placeholder click feedback — flash the element so it's obvious what's a stand-in
 document.querySelectorAll('[data-placeholder]').forEach(el => {
   el.addEventListener('click', (e) => {
