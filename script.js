@@ -535,7 +535,21 @@ const EXPERIENCE_LENSES = {
 (function () {
   const dropdown = document.getElementById("resume-dropdown");
   const trigger = document.getElementById("resume-dropdown-trigger");
-  if (!dropdown || !trigger) return;
+  const menu = document.getElementById("resume-dropdown-menu");
+  if (!dropdown || !trigger || !menu) return;
+
+  // The menu is positioned absolutely by default in CSS, anchored inside
+  // .hero, which has overflow:hidden (needed to contain the background
+  // canvas animation). That clips the dropdown the moment it extends past
+  // the hero's edge. Fixed positioning, calculated from the trigger's real
+  // screen position, escapes that clipping entirely — recalculated every
+  // open in case the page scrolled or resized since last time.
+  function positionMenu() {
+    const rect = trigger.getBoundingClientRect();
+    menu.style.position = "fixed";
+    menu.style.top = `${rect.bottom + 8}px`;
+    menu.style.left = `${rect.left}px`;
+  }
 
   function closeDropdown() {
     dropdown.classList.remove("open");
@@ -545,6 +559,7 @@ const EXPERIENCE_LENSES = {
   function toggleDropdown() {
     const isOpen = dropdown.classList.toggle("open");
     trigger.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) positionMenu();
   }
 
   trigger.addEventListener("click", (e) => {
@@ -558,6 +573,16 @@ const EXPERIENCE_LENSES = {
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeDropdown();
+  });
+
+  // Keep the menu correctly anchored to the button if the page is
+  // scrolled or the window is resized while it's open, rather than
+  // leaving it floating in a stale position.
+  window.addEventListener("scroll", () => {
+    if (dropdown.classList.contains("open")) positionMenu();
+  }, { passive: true });
+  window.addEventListener("resize", () => {
+    if (dropdown.classList.contains("open")) positionMenu();
   });
 })();
 
