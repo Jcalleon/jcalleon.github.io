@@ -1,0 +1,404 @@
+/* ==========================================================================
+   CYBERSECURITY RESUME PAGE — design tokens
+   Color: graphite-blue #0A0E14 (bg), #131B28 (panel), #FF4757 (alert — used
+   ONLY for the hero stat and critical emphasis, never decoratively),
+   #2ED9C3 (detection teal — status/healthy accents), #E8EDF2 (text).
+   Type: IBM Plex Mono (display/headers — technical, real monospace
+   heritage), Inter (body), JetBrains Mono (data/stats only — numbers read
+   as "output", visually distinct from headers).
+   Signature: hero stat undergoes a brief scanning-line sweep on load, as
+   if the number is being detected rather than just appearing.
+   ========================================================================== */
+
+:root {
+  --bg: #0A0E14;
+  --panel: #131B28;
+  --panel-raised: #1A2433;
+  --line: #232E40;
+  --text: #E8EDF2;
+  --text-dim: #8A96A8;
+  --text-faint: #525F70;
+  --alert: #FF4757;
+  --teal: #2ED9C3;
+  --font-display: 'IBM Plex Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+
+#scan-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ---- nav ---- */
+.rnav {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.rnav-back {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.rnav-back:hover { color: var(--teal); }
+.rnav-mark {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+/* ---- hero ---- */
+.hero {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 32px 88px;
+  text-align: left;
+}
+
+.eyebrow {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 12.5px;
+  color: var(--teal);
+  letter-spacing: 0.04em;
+  margin-bottom: 20px;
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 6vw, 52px);
+  font-weight: 700;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.role-line {
+  font-family: var(--font-display);
+  font-size: 17px;
+  color: var(--text-dim);
+  margin: 0 0 40px;
+}
+
+.hero-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 32px;
+}
+
+.stat-number {
+  font-family: var(--font-data);
+  font-size: clamp(56px, 11vw, 92px);
+  font-weight: 700;
+  color: var(--alert);
+  line-height: 1;
+  position: relative;
+}
+
+/* The signature moment: a scanning line sweeps across the stat once on
+   load, as if the number were just detected, not just rendered. */
+.stat-number::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -10%;
+  width: 6px;
+  height: 100%;
+  background: var(--teal);
+  box-shadow: 0 0 20px 4px var(--teal);
+  opacity: 0;
+}
+.stat-number.scanning::after {
+  opacity: 1;
+  animation: scan-sweep 1.1s ease-out forwards;
+}
+@keyframes scan-sweep {
+  0% { left: -10%; opacity: 1; }
+  85% { opacity: 1; }
+  100% { left: 110%; opacity: 0; }
+}
+
+.stat-label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  max-width: 220px;
+}
+
+.summary-text {
+  font-size: 16px;
+  color: var(--text-dim);
+  max-width: 600px;
+  margin: 0 0 36px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.btn-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--teal);
+  color: #06141A;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 13px 22px;
+  border-radius: 6px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-download:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(46, 217, 195, 0.25); }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  padding: 13px 22px;
+  border-radius: 6px;
+}
+.btn-secondary:hover { border-color: var(--text-dim); color: var(--text); }
+
+/* ---- shared section structure ---- */
+.section-head {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+  margin-bottom: 28px;
+}
+
+.log-label {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--teal);
+  margin-bottom: 8px;
+}
+
+.section-head h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.timeline-section, .experience-section, .skills-section {
+  position: relative;
+  z-index: 1;
+  padding: 56px 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- timeline ---- */
+.timeline {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+  position: relative;
+}
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 38px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--line);
+}
+
+.tl-item {
+  position: relative;
+  padding-left: 56px;
+  margin-bottom: 28px;
+}
+.tl-item::before {
+  content: "";
+  position: absolute;
+  left: 33px;
+  top: 5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--teal);
+}
+.tl-dates {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--text-faint);
+  display: block;
+  margin-bottom: 3px;
+}
+.tl-company {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.tl-title {
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+/* ---- experience ---- */
+#experience-list {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.exp-job {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 24px;
+  margin-bottom: 18px;
+}
+
+.exp-job-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.exp-job-title-block h3 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  margin: 0 0 2px;
+}
+.exp-job-title-block p {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.exp-job-dates {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--teal);
+  white-space: nowrap;
+}
+
+.exp-bullets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.exp-bullets li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.exp-bullets li::before {
+  content: "›";
+  position: absolute;
+  left: 0;
+  color: var(--teal);
+  font-family: var(--font-data);
+}
+.exp-bullets strong { color: var(--text); font-weight: 600; }
+
+/* ---- skills ---- */
+.skills-grid {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.skill-chip {
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  padding: 8px 14px;
+  border-radius: 20px;
+}
+
+/* ---- footer ---- */
+.contact-footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--line);
+  padding: 72px 32px;
+  text-align: center;
+}
+.contact-inner { max-width: 600px; margin: 0 auto; }
+.contact-footer h2 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  margin: 0 0 12px;
+}
+.contact-footer p {
+  color: var(--text-dim);
+  margin: 0 0 28px;
+}
+.contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.contact-links a:hover { color: var(--teal); }
+
+@media (max-width: 640px) {
+  .hero-stat { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .exp-job-head { flex-direction: column; }
+}
