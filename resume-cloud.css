@@ -1,0 +1,411 @@
+/* ==========================================================================
+   CLOUD & AUTOMATION RESUME PAGE — design tokens
+   Color: deep indigo-violet #0D0A1A (bg), #161228 (panel), #A78BFA
+   (signature violet — pipeline/sync accent), #6EE7E0 (cyan-teal,
+   secondary — "data flowing through" highlight), #ECE9F7 (text).
+   Type: Space Grotesk (display/headers — geometric, slightly technical
+   but warmer than a pure monospace, fitting "abstract pipeline" rather
+   than "raw terminal"), Inter (body), JetBrains Mono (data — throughput/
+   stat numbers read as pipeline output).
+   Signature: a slow-flowing pipeline canvas — nodes linked by curved
+   conduits with small particles flowing continuously in one direction
+   (not bouncing/random like network's packets), evoking an automated
+   data pipeline rather than a point-to-point network. A small sync-spinner
+   glyph briefly rotates next to the hero stat once on load.
+   ========================================================================== */
+
+:root {
+  --bg: #0D0A1A;
+  --panel: #161228;
+  --panel-raised: #1C1733;
+  --line: #2A2347;
+  --text: #ECE9F7;
+  --text-dim: #A79FC2;
+  --text-faint: #5C5480;
+  --violet: #A78BFA;
+  --teal: #6EE7E0;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+
+#pipeline-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ---- nav ---- */
+.rnav {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.rnav-back {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.rnav-back:hover { color: var(--violet); }
+.rnav-mark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+/* ---- hero ---- */
+.hero {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 32px 88px;
+  text-align: left;
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 6vw, 52px);
+  font-weight: 700;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.role-line {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--text-dim);
+  margin: 0 0 40px;
+}
+
+.hero-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 32px;
+}
+
+.stat-number {
+  font-family: var(--font-data);
+  font-size: clamp(56px, 11vw, 92px);
+  font-weight: 700;
+  color: var(--violet);
+  line-height: 1;
+  position: relative;
+  padding-right: 38px;
+}
+
+/* Signature moment: a small sync/gear glyph spins once next to the
+   number, like an automation job just completed a cycle. */
+.stat-number::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 18%;
+  width: 26px;
+  height: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236EE7E0' stroke-width='2'%3E%3Cpath d='M21 12a9 9 0 1 1-2.64-6.36'/%3E%3Cpath d='M21 3v6h-6'/%3E%3C/svg%3E");
+  background-size: contain;
+  opacity: 0;
+  transform: rotate(0deg);
+}
+.stat-number.synced::after {
+  animation: sync-spin 0.85s ease-out forwards, sync-fade 0.85s ease-out forwards;
+}
+@keyframes sync-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(300deg); }
+}
+@keyframes sync-fade {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+.stat-label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  max-width: 220px;
+}
+
+.summary-text {
+  font-size: 16px;
+  color: var(--text-dim);
+  max-width: 600px;
+  margin: 0 0 36px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.btn-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--violet);
+  color: #160F2E;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 13px 22px;
+  border-radius: 6px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-download:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(167, 139, 250, 0.3); }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  padding: 13px 22px;
+  border-radius: 6px;
+}
+.btn-secondary:hover { border-color: var(--text-dim); color: var(--text); }
+
+/* ---- shared section structure ---- */
+.section-head {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+  margin-bottom: 28px;
+}
+
+.log-label {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--teal);
+  margin-bottom: 8px;
+}
+
+.section-head h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.timeline-section, .experience-section, .skills-section {
+  position: relative;
+  z-index: 1;
+  padding: 56px 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- timeline ---- */
+.timeline {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+  position: relative;
+}
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 38px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--line);
+}
+
+.tl-item {
+  position: relative;
+  padding-left: 56px;
+  margin-bottom: 28px;
+}
+.tl-item::before {
+  content: "";
+  position: absolute;
+  left: 33px;
+  top: 5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--violet);
+}
+.tl-dates {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--text-faint);
+  display: block;
+  margin-bottom: 3px;
+}
+.tl-company {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+.tl-title {
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+/* ---- experience ---- */
+#experience-list {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.exp-job {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 24px;
+  margin-bottom: 18px;
+}
+
+.exp-job-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.exp-job-title-block h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0 0 2px;
+}
+.exp-job-title-block p {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.exp-job-dates {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--violet);
+  white-space: nowrap;
+}
+
+.exp-bullets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.exp-bullets li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.exp-bullets li::before {
+  content: "›";
+  position: absolute;
+  left: 0;
+  color: var(--violet);
+  font-family: var(--font-data);
+}
+.exp-bullets strong { color: var(--text); font-weight: 600; }
+
+/* ---- skills ---- */
+.skills-grid {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.skill-chip {
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  padding: 8px 14px;
+  border-radius: 20px;
+}
+
+/* ---- footer ---- */
+.contact-footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--line);
+  padding: 72px 32px;
+  text-align: center;
+}
+.contact-inner { max-width: 600px; margin: 0 auto; }
+.contact-footer h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 28px;
+  margin: 0 0 12px;
+}
+.contact-footer p {
+  color: var(--text-dim);
+  margin: 0 0 28px;
+}
+.contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.contact-links a:hover { color: var(--violet); }
+
+@media (max-width: 640px) {
+  .hero-stat { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .exp-job-head { flex-direction: column; }
+}

@@ -1,0 +1,432 @@
+/* ==========================================================================
+   PROJECT MANAGEMENT RESUME PAGE — design tokens
+   Color: charcoal #0F1115 (bg), #181B22 (panel), #F5B342 (amber/gold —
+   "on track" status color used for progress fills and milestones),
+   #5B79D6 (cool blue, secondary — used sparingly for "in progress" vs
+   amber's "on track"), #ECEEF2 (text).
+   Type: Sora (display/headers — structured grotesque, reads like a
+   planning tool's UI font), Inter (body), JetBrains Mono (data — dates/
+   percentages read as schedule output).
+   Signature: each job in the experience section gets a horizontal
+   progress bar (styled like a Gantt task bar) that fills in on load,
+   with the bar's length mapped to the job's duration relative to the
+   longest job — duration becomes a literal visual proportion, not just
+   stated in text.
+   ========================================================================== */
+
+:root {
+  --bg: #0F1115;
+  --panel: #181B22;
+  --panel-raised: #1F232C;
+  --line: #2A2F3A;
+  --text: #ECEEF2;
+  --text-dim: #9A9FAC;
+  --text-faint: #565C68;
+  --amber: #F5B342;
+  --blue: #5B79D6;
+  --font-display: 'Sora', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+
+#grid-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ---- nav ---- */
+.rnav {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.rnav-back {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.rnav-back:hover { color: var(--amber); }
+.rnav-mark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+/* ---- hero ---- */
+.hero {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 32px 88px;
+  text-align: left;
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 6vw, 52px);
+  font-weight: 700;
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.role-line {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--text-dim);
+  margin: 0 0 40px;
+}
+
+.hero-stat {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 32px;
+}
+
+.stat-number {
+  font-family: var(--font-data);
+  font-size: clamp(56px, 11vw, 92px);
+  font-weight: 700;
+  color: var(--amber);
+  line-height: 1;
+  position: relative;
+}
+
+.stat-number-wrap { display: flex; flex-direction: column; gap: 10px; }
+
+/* Signature echo in the hero itself: a thin milestone track under the
+   number fills in once, foreshadowing the per-job Gantt bars below. */
+.stat-progress-track {
+  width: 180px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.stat-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--amber);
+  border-radius: 2px;
+}
+.stat-progress-fill.filled {
+  animation: fill-bar 1s ease-out forwards;
+}
+@keyframes fill-bar {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+.stat-label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  max-width: 220px;
+}
+
+.summary-text {
+  font-size: 16px;
+  color: var(--text-dim);
+  max-width: 600px;
+  margin: 0 0 36px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.btn-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--amber);
+  color: #1A1304;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 13px 22px;
+  border-radius: 6px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-download:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(245, 179, 66, 0.28); }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  padding: 13px 22px;
+  border-radius: 6px;
+}
+.btn-secondary:hover { border-color: var(--text-dim); color: var(--text); }
+
+/* ---- shared section structure ---- */
+.section-head {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+  margin-bottom: 28px;
+}
+
+.log-label {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--amber);
+  margin-bottom: 8px;
+}
+
+.section-head h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.timeline-section, .experience-section, .skills-section {
+  position: relative;
+  z-index: 1;
+  padding: 56px 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- timeline ---- */
+.timeline {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+  position: relative;
+}
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 38px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--line);
+}
+
+.tl-item {
+  position: relative;
+  padding-left: 56px;
+  margin-bottom: 28px;
+}
+.tl-item::before {
+  content: "";
+  position: absolute;
+  left: 33px;
+  top: 5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: var(--bg);
+  border: 2px solid var(--amber);
+  transform: rotate(45deg);
+}
+.tl-dates {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--text-faint);
+  display: block;
+  margin-bottom: 3px;
+}
+.tl-company {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+.tl-title {
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+
+/* ---- experience ---- */
+#experience-list {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.exp-job {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 24px;
+  margin-bottom: 18px;
+}
+
+.exp-job-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.exp-job-title-block h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0 0 2px;
+}
+.exp-job-title-block p {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.exp-job-dates {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--amber);
+  white-space: nowrap;
+}
+
+/* The signature element: a Gantt-style task bar whose fill length is
+   mapped (in JS) to this job's duration relative to the longest job —
+   "this took roughly this much of the timeline," shown visually. */
+.gantt-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  box-sizing: content-box;
+}
+.gantt-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--blue), var(--amber));
+}
+.gantt-fill.filled {
+  animation: fill-bar 1s ease-out forwards;
+}
+
+.exp-bullets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.exp-bullets li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.exp-bullets li::before {
+  content: "›";
+  position: absolute;
+  left: 0;
+  color: var(--amber);
+  font-family: var(--font-data);
+}
+.exp-bullets strong { color: var(--text); font-weight: 600; }
+
+/* ---- skills ---- */
+.skills-grid {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.skill-chip {
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  padding: 8px 14px;
+  border-radius: 20px;
+}
+
+/* ---- footer ---- */
+.contact-footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--line);
+  padding: 72px 32px;
+  text-align: center;
+}
+.contact-inner { max-width: 600px; margin: 0 auto; }
+.contact-footer h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 28px;
+  margin: 0 0 12px;
+}
+.contact-footer p {
+  color: var(--text-dim);
+  margin: 0 0 28px;
+}
+.contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px;
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.contact-links a:hover { color: var(--amber); }
+
+@media (max-width: 640px) {
+  .hero-stat { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .exp-job-head { flex-direction: column; }
+}
