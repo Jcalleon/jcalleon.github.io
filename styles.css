@@ -506,6 +506,16 @@ section {
 }
 .comp-card:hover { background: var(--panel-raised); }
 
+.comp-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.comp-card-link:hover {
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
 .comp-icon-row {
   display: flex;
   align-items: center;
