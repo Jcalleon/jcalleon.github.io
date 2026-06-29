@@ -538,12 +538,16 @@ const EXPERIENCE_LENSES = {
   const menu = document.getElementById("resume-dropdown-menu");
   if (!dropdown || !trigger || !menu) return;
 
-  // The menu is positioned absolutely by default in CSS, anchored inside
-  // .hero, which has overflow:hidden (needed to contain the background
-  // canvas animation). That clips the dropdown the moment it extends past
-  // the hero's edge. Fixed positioning, calculated from the trigger's real
-  // screen position, escapes that clipping entirely — recalculated every
-  // open in case the page scrolled or resized since last time.
+  // Moved to a direct child of <body> once, on init — not just given
+  // fixed positioning in place. This was tightened after the fixed-position
+  // fix alone still showed cross-browser bleed-through from the Experience
+  // section's blurred job cards (.exp-case uses backdrop-filter, which has
+  // known inconsistent stacking/compositing behavior against fixed-position
+  // siblings across browser engines). Being a literal sibling of <body>,
+  // not nested inside .hero/.resume-dropdown at all, removes the ancestor
+  // relationship that caused it rather than fighting it with z-index.
+  document.body.appendChild(menu);
+
   function positionMenu() {
     const rect = trigger.getBoundingClientRect();
     menu.style.position = "fixed";
@@ -553,11 +557,14 @@ const EXPERIENCE_LENSES = {
 
   function closeDropdown() {
     dropdown.classList.remove("open");
+    menu.classList.remove("open");
     trigger.setAttribute("aria-expanded", "false");
   }
 
   function toggleDropdown() {
-    const isOpen = dropdown.classList.toggle("open");
+    const isOpen = !menu.classList.contains("open");
+    dropdown.classList.toggle("open", isOpen);
+    menu.classList.toggle("open", isOpen);
     trigger.setAttribute("aria-expanded", String(isOpen));
     if (isOpen) positionMenu();
   }
@@ -568,7 +575,7 @@ const EXPERIENCE_LENSES = {
   });
 
   document.addEventListener("click", (e) => {
-    if (!dropdown.contains(e.target)) closeDropdown();
+    if (!dropdown.contains(e.target) && !menu.contains(e.target)) closeDropdown();
   });
 
   document.addEventListener("keydown", (e) => {
@@ -579,10 +586,10 @@ const EXPERIENCE_LENSES = {
   // scrolled or the window is resized while it's open, rather than
   // leaving it floating in a stale position.
   window.addEventListener("scroll", () => {
-    if (dropdown.classList.contains("open")) positionMenu();
+    if (menu.classList.contains("open")) positionMenu();
   }, { passive: true });
   window.addEventListener("resize", () => {
-    if (dropdown.classList.contains("open")) positionMenu();
+    if (menu.classList.contains("open")) positionMenu();
   });
 })();
 
