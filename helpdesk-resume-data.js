@@ -25,8 +25,8 @@ const RESUME_DATA = {
       ]
     },
     {
-      "company": "InSync Computer Solutions",
-      "title": "Network Engineer (MSP)",
+      "company": "InSync Computer Solutions (MSP)",
+      "title": "Network Engineer",
       "dates": "Jun 2022 – Jan 2023",
       "bullets": [
         "Resolved client support incidents across a 10-30 client MSP portfolio as part of standard engagement scope, with average incident resolution time of 2-4 hours.",

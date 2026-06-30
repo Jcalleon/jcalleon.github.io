@@ -37,8 +37,8 @@ const RESUME_DATA = {
       ]
     },
     {
-      "company": "InSync Computer Solutions",
-      "title": "Network Engineer (MSP)",
+      "company": "InSync Computer Solutions (MSP)",
+      "title": "Network Engineer",
       "dates": "Jun 2022 \u2013 Jan 2023",
       "bullets": [
         "Secured 10,000+ endpoints across a mix of client environments \u2014 from 2-device sites to a single 1,000+ device enterprise contract \u2014 implementing layered controls including firewall policy and VLAN/VPN network segmentation.",

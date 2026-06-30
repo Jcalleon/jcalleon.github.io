@@ -29,8 +29,8 @@ const RESUME_DATA = {
       ]
     },
     {
-      "company": "InSync Computer Solutions",
-      "title": "Network Engineer (MSP)",
+      "company": "InSync Computer Solutions (MSP)",
+      "title": "Network Engineer",
       "dates": "Jun 2022 – Jan 2023",
       "bullets": [
         "Supported Citrix environments hosted in Azure as part of client infrastructure management.",
