@@ -116,7 +116,7 @@ const EXPERIENCE_LENSES = {
       ]
     },
     "4": {
-      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "title": "Network Engineer",
       "bullets": [
         "Secured <strong>10,000+</strong> endpoints across a mix of client environments, implementing layered firewall and VLAN/VPN segmentation controls",
         "Delivered vulnerability remediation across the full MSP client portfolio",
@@ -191,7 +191,7 @@ const EXPERIENCE_LENSES = {
       ]
     },
     "4": {
-      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "title": "Network Engineer",
       "bullets": [
         "Secured <strong>10,000+</strong> endpoints across a mix of client environments \u2014 from 2-device sites to a single <strong>1,000+</strong> device enterprise contract",
         "Maintained <strong>99.999%</strong> network uptime across managed client environments, with average incident resolution time of 2-4 hours",
@@ -266,7 +266,7 @@ const EXPERIENCE_LENSES = {
       ]
     },
     "4": {
-      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "title": "Network Engineer",
       "bullets": [
         "Delivered infrastructure hardening across a client base ranging from 2-device sites to a single <strong>1,000+</strong> device enterprise contract",
         "Secured <strong>10,000+</strong> endpoints total, maintaining infrastructure reliability across a mixed-scale client portfolio",
@@ -325,7 +325,7 @@ const EXPERIENCE_LENSES = {
       ]
     },
     "4": {
-      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "title": "Network Engineer",
       "bullets": [
         "Resolved client support incidents across a 10-30 client MSP portfolio, with average incident resolution time of 2-4 hours",
         "Delivered a standardized 3-day client onboarding process (BitLocker, Jamf/Intune enrollment)",
@@ -401,7 +401,7 @@ const EXPERIENCE_LENSES = {
       ]
     },
     "4": {
-      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "title": "Network Engineer",
       "bullets": [
         "Coordinated onboarding projects for new MSP clients, each delivered within a standardized 3-day timeline",
         "Coordinated multi-client rollout projects including mergers and a database-administration migration"
@@ -467,7 +467,7 @@ const EXPERIENCE_LENSES = {
       ]
     },
     "4": {
-      "title": "Network Engineer <span class=\"dim\">(MSP)</span>",
+      "title": "Network Engineer",
       "bullets": [
         "Supported Citrix environments hosted in Azure as part of client infrastructure management",
         "Built basic automation around Azure CLI and scripted backups for client environments"
