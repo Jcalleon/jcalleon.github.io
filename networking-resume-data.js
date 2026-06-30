@@ -1,6 +1,6 @@
 const RESUME_DATA = {
   "lens": "NETWORK ENGINEERING",
-  "title": "Network Engineer (MSP)",
+  "title": "Network Engineer",
   "summary": "Network engineer with hands-on experience designing and deploying enterprise WAN architecture, IPSec tunnel meshes, firewall migrations, and large-scale endpoint security across MSP client environments. Comfortable owning network infrastructure end to end, from design through long-term reliability, across environments ranging from 2-device offices to 10,000+ endpoint enterprise contracts.",
   "jobs": [
     {
@@ -32,8 +32,8 @@ const RESUME_DATA = {
       ]
     },
     {
-      "company": "InSync Computer Solutions",
-      "title": "Network Engineer (MSP)",
+      "company": "InSync Computer Solutions (MSP)",
+      "title": "Network Engineer",
       "dates": "Jun 2022 – Jan 2023",
       "bullets": [
         "Secured 10,000+ endpoints across a mix of client environments — from 2-device sites to a single 1,000+ device enterprise contract — implementing layered network security controls.",

@@ -17,7 +17,7 @@ const RESUME_DATA = {
     },
     {
       "company": "The Smart Circle",
-      "title": "Systems Administrator",
+      "title": "Sr. Systems Administrator",
       "dates": "Feb 2023 – Sep 2023",
       "bullets": [
         "Provided escalation support tied to the IAM rollout (Okta, Atlassian, 1Password) across 500+ users during the transition.",

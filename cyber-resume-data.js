@@ -21,7 +21,7 @@ const RESUME_DATA = {
     },
     {
       "company": "The Smart Circle",
-      "title": "System Administrator (Security-Focused)",
+      "title": "Sr. Systems Security Administrator",
       "dates": "Feb 2023 \u2013 Sep 2023",
       "bullets": [
         "Designed an enterprise vulnerability management program (Tenable + KACE), raising patch compliance from 18% to 90%.",

@@ -1,6 +1,6 @@
 const RESUME_DATA = {
   "lens": "INFRASTRUCTURE & SYSTEMS",
-  "title": "System Administrator (Security-Focused)",
+  "title": "Systems and Infrastructure Engineer",
   "summary": "Infrastructure and systems engineer with a track record of building patch-compliance, disaster-recovery, and automated deployment pipelines that hold up well beyond initial rollout. Experience spans enterprise vulnerability management, SIEM infrastructure, full Intune/Ansible deployment stacks, and server/storage administration across thousands of managed systems.",
   "jobs": [
     {
@@ -35,8 +35,8 @@ const RESUME_DATA = {
       ]
     },
     {
-      "company": "InSync Computer Solutions",
-      "title": "Network Engineer (MSP)",
+      "company": "InSync Computer Solutions (MSP)",
+      "title": "Network Engineer",
       "dates": "Jun 2022 – Jan 2023",
       "bullets": [
         "Delivered infrastructure hardening across a client base ranging from 2-device sites to a single 1,000+ device enterprise contract.",

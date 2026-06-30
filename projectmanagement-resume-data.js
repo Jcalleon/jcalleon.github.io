@@ -31,8 +31,8 @@ const RESUME_DATA = {
       ]
     },
     {
-      "company": "InSync Computer Solutions",
-      "title": "Network Engineer (MSP)",
+      "company": "InSync Computer Solutions (MSP)",
+      "title": "Network Engineer",
       "dates": "Jun 2022 – Jan 2023",
       "bullets": [
         "Coordinated onboarding projects for new MSP clients, each delivered within a standardized 3-day timeline.",

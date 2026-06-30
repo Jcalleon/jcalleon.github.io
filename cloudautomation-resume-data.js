@@ -20,7 +20,7 @@ const RESUME_DATA = {
     },
     {
       "company": "The Smart Circle",
-      "title": "System Administrator (Security-Focused)",
+      "title": "Sr. System Administrator",
       "dates": "Feb 2023 – Sep 2023",
       "bullets": [
         "Implemented cloud-based IAM (Okta) as part of the credential-management rollout across 500+ users and 1,000+ accounts.",
