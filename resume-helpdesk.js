@@ -101,10 +101,54 @@ window.addEventListener("load", () => {
 });
 
 // ===========================================================================
-// BACKGROUND CANVAS — a loose scatter of soft, rounded chat-bubble shapes
-// drifting slowly upward and sideways, fading in and out, like a queue of
-// messages quietly moving through. Warm and human, not a system display:
-// no grid, no sharp lines, no monospace-feeling motion.
+// TICKET TOAST — a small "new ticket" notification slides in from the
+// right edge near the hero stat every ~6s, waits, then slides back out.
+// It's purely decorative but it makes the page feel live and
+// queue-like — different from ambient canvas motion because it's a
+// real DOM element with text, not a graphical shape.
+// ===========================================================================
+(function () {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion) return;
+
+  const TICKETS = [
+    "New ticket · Password reset",
+    "New ticket · VPN access request",
+    "New ticket · Printer offline",
+    "New ticket · MFA enrollment",
+    "New ticket · Account locked",
+    "New ticket · Software install",
+    "New ticket · Onboarding request",
+  ];
+  let idx = 0;
+
+  const toast = document.createElement("div");
+  toast.className = "ticket-toast";
+  document.body.appendChild(toast);
+
+  function showNext() {
+    toast.textContent = TICKETS[idx % TICKETS.length];
+    idx++;
+    toast.classList.add("visible");
+    setTimeout(() => {
+      toast.classList.remove("visible");
+    }, 2400);
+  }
+
+  // First one after a short delay, then every 5.5s
+  setTimeout(() => {
+    showNext();
+    setInterval(showNext, 5500);
+  }, 2200);
+})();
+
+// ===========================================================================
+// BACKGROUND CANVAS — a scatter of soft, rounded chat-bubble shapes
+// drifting upward through the page, swaying gently side to side, fading
+// in as they spawn and fading out as they exit — like a queue of
+// messages continuously moving through, not just static ambient shapes.
+// Warm and human, not a system display: no grid, no sharp lines, no
+// monospace-feeling motion.
 // ===========================================================================
 (function () {
   const canvas = document.getElementById("bubble-canvas");
@@ -115,8 +159,9 @@ window.addEventListener("load", () => {
   let width, height, dpr;
   let bubbles = [];
   let rafId = null;
+  let startTime = performance.now();
 
-  const COLORS = ["rgba(255, 138, 92, 0.045)", "rgba(242, 169, 59, 0.045)", "rgba(255, 138, 92, 0.03)"];
+  const COLORS = ["rgba(255, 138, 92, 0.07)", "rgba(242, 169, 59, 0.07)", "rgba(255, 138, 92, 0.05)"];
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -131,7 +176,7 @@ window.addEventListener("load", () => {
   }
 
   function buildBubbles() {
-    const count = Math.max(5, Math.min(8, Math.floor((width * height) / 220000)));
+    const count = Math.max(7, Math.min(11, Math.floor((width * height) / 170000)));
     bubbles = [];
     for (let i = 0; i < count; i++) {
       bubbles.push(makeBubble(Math.random() * height));
@@ -151,16 +196,19 @@ window.addEventListener("load", () => {
     const x = center + side * (contentHalf + 40 + Math.random() * edgeSpan);
     return {
       x: Math.max(20, Math.min(width - 20, x)),
+      baseX: Math.max(20, Math.min(width - 20, x)),
       y: startY,
       w, h,
-      vy: -0.08 - Math.random() * 0.1,
-      vx: (Math.random() - 0.5) * 0.05,
+      vy: -0.22 - Math.random() * 0.22,
+      swayAmp: 8 + Math.random() * 14,
+      swaySpeed: 0.0006 + Math.random() * 0.0006,
+      swayPhase: Math.random() * Math.PI * 2,
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
-      tailRight: Math.random() > 0.5,
+      bornAt: performance.now(),
     };
   }
 
-  function drawBubble(b) {
+  function drawBubble(b, alpha) {
     const r = Math.min(b.w, b.h) * 0.32;
     ctx.beginPath();
     // rounded rect body
@@ -171,16 +219,33 @@ window.addEventListener("load", () => {
     ctx.arcTo(x, y + b.h, x, y, r);
     ctx.arcTo(x, y, x + b.w, y, r);
     ctx.closePath();
+    ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = b.color;
     ctx.fill();
+    ctx.restore();
   }
 
-  function frame() {
+  // Fade in over the first 900ms after spawn, fade out over the last
+  // 700ms before despawn — so bubbles arrive and leave gently instead of
+  // popping in/out at the canvas edge.
+  function lifecycleAlpha(b, t, despawnAt) {
+    const age = t - b.bornAt;
+    const fadeIn = Math.min(1, age / 900);
+    const remaining = despawnAt - t;
+    const fadeOut = remaining < 700 ? Math.max(0, remaining / 700) : 1;
+    return Math.min(fadeIn, fadeOut);
+  }
+
+  function frame(now) {
+    const t = now || performance.now();
     ctx.clearRect(0, 0, width, height);
     for (const b of bubbles) {
       b.y += b.vy;
-      b.x += b.vx;
-      drawBubble(b);
+      b.x = b.baseX + Math.sin(t * b.swaySpeed + b.swayPhase) * b.swayAmp;
+      const despawnAt = b.bornAt + ((height + b.h + 80) / -b.vy);
+      const alpha = lifecycleAlpha(b, t, despawnAt);
+      drawBubble(b, alpha);
       if (b.y + b.h < -40) {
         Object.assign(b, makeBubble(height + 40));
       }
@@ -193,8 +258,8 @@ window.addEventListener("load", () => {
 
   if (reduceMotion) {
     // Static single frame: bubbles visible at their initial positions, no drift.
-    for (const b of bubbles) drawBubble(b);
+    for (const b of bubbles) drawBubble(b, 1);
   } else {
-    frame();
+    frame(startTime);
   }
 })();

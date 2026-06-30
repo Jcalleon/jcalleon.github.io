@@ -102,11 +102,44 @@ window.addEventListener("load", () => {
 });
 
 // ===========================================================================
-// BACKGROUND CANVAS — a faint architectural blueprint grid (fine lines,
-// occasional cross-tick "measurement marks") with a handful of steady
-// status dots that pulse in place. No sweeping motion, no traveling
-// elements: stability and structure are the point, not activity.
-// Distinct from cyber's scan-line and network's traveling packets.
+// LIVE UPTIME COUNTER — a small ticking "monitoring since" readout under
+// the hero stat. Purely decorative (it just counts up from page load,
+// it's not tracking a real monitor), but it gives the hero a second,
+// content-level source of continuous motion instead of relying entirely
+// on the one-time load animation and the background canvas.
+// ===========================================================================
+(function () {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const label = document.getElementById("uptime-ticker");
+  if (!label) return;
+
+  if (reduceMotion) {
+    label.textContent = "monitoring active";
+    return;
+  }
+
+  const start = performance.now();
+  function pad(n) { return String(n).padStart(2, "0"); }
+  function tick() {
+    const elapsed = Math.floor((performance.now() - start) / 1000);
+    const h = pad(Math.floor(elapsed / 3600));
+    const m = pad(Math.floor((elapsed % 3600) / 60));
+    const s = pad(elapsed % 60);
+    label.textContent = `monitoring · ${h}:${m}:${s}`;
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+
+// ===========================================================================
+// BACKGROUND CANVAS — an active monitoring board: an architectural
+// blueprint grid with a denser field of status dots that pulse steadily,
+// plus a periodic horizontal "health check" sweep that passes down the
+// page every few seconds and visibly brightens any dot it crosses — like
+// an automated check cycle running continuously, not a one-time scan.
+// Distinct from cyber's single scan-line (which sweeps once per load)
+// and network's traveling packets: here the sweep recurs on a loop and
+// reacts with the dots it touches rather than just passing over them.
 // ===========================================================================
 (function () {
   const canvas = document.getElementById("blueprint-canvas");
@@ -118,6 +151,10 @@ window.addEventListener("load", () => {
   let statusDots = [];
   let rafId = null;
   let startTime = performance.now();
+
+  const SWEEP_PERIOD = 5200; // ms between health-check passes
+  const SWEEP_DURATION = 1900; // ms for one pass top -> bottom
+  const SWEEP_BAND = 90; // px height of the bright band
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -132,12 +169,13 @@ window.addEventListener("load", () => {
   }
 
   function buildStatusDots() {
-    const spacing = 160;
+    const spacing = 110;
     statusDots = [];
     for (let x = spacing; x < width; x += spacing) {
       for (let y = spacing; y < height; y += spacing) {
-        // sparse: only place a dot at roughly a third of grid intersections
-        if (Math.random() < 0.35) {
+        // denser than before: most grid intersections get a dot now, so
+        // the board reads as actively instrumented rather than sparse
+        if (Math.random() < 0.62) {
           statusDots.push({ x, y, phase: Math.random() * Math.PI * 2 });
         }
       }
@@ -175,11 +213,40 @@ window.addEventListener("load", () => {
     }
   }
 
-  function drawStatusDots(t) {
+  // Returns the current sweep band's y-position, or null if no sweep is
+  // active right now (it runs once per SWEEP_PERIOD, not continuously).
+  function sweepY(t) {
+    const cycle = t % SWEEP_PERIOD;
+    if (cycle > SWEEP_DURATION) return null;
+    const progress = cycle / SWEEP_DURATION;
+    return -SWEEP_BAND + progress * (height + SWEEP_BAND * 2);
+  }
+
+  function drawSweep(sy) {
+    if (sy == null) return;
+    const gradient = ctx.createLinearGradient(0, sy - SWEEP_BAND, 0, sy + SWEEP_BAND);
+    gradient.addColorStop(0, "rgba(52, 211, 153, 0)");
+    gradient.addColorStop(0.5, "rgba(52, 211, 153, 0.05)");
+    gradient.addColorStop(1, "rgba(52, 211, 153, 0)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, sy - SWEEP_BAND, width, SWEEP_BAND * 2);
+
+    ctx.fillStyle = "rgba(52, 211, 153, 0.3)";
+    ctx.fillRect(0, sy, width, 1);
+  }
+
+  function drawStatusDots(t, sy) {
     for (const d of statusDots) {
-      const pulse = 0.4 + 0.3 * Math.sin(t / 1400 + d.phase);
+      let pulse = 0.35 + 0.25 * Math.sin(t / 1500 + d.phase);
+      // brighten any dot the sweep band is currently passing through,
+      // like a check cycle confirming that node is healthy as it goes
+      if (sy != null && Math.abs(d.y - sy) < SWEEP_BAND) {
+        const proximity = 1 - Math.abs(d.y - sy) / SWEEP_BAND;
+        pulse = Math.max(pulse, 0.5 + proximity * 0.5);
+      }
+      const r = sy != null && Math.abs(d.y - sy) < SWEEP_BAND * 0.4 ? 3.2 : 2.4;
       ctx.beginPath();
-      ctx.arc(d.x, d.y, 2.4, 0, Math.PI * 2);
+      ctx.arc(d.x, d.y, r, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(52, 211, 153, ${pulse})`;
       ctx.fill();
     }
@@ -187,9 +254,11 @@ window.addEventListener("load", () => {
 
   function frame() {
     const t = performance.now() - startTime;
+    const sy = sweepY(t);
     ctx.clearRect(0, 0, width, height);
     drawGrid();
-    drawStatusDots(t);
+    drawSweep(sy);
+    drawStatusDots(t, sy);
     rafId = requestAnimationFrame(frame);
   }
 
@@ -197,7 +266,8 @@ window.addEventListener("load", () => {
   window.addEventListener("resize", resize);
 
   if (reduceMotion) {
-    // Static single frame: grid plus dots at fixed mid-brightness, no pulse.
+    // Static single frame: grid plus dots at fixed mid-brightness, no
+    // pulse and no sweep.
     drawGrid();
     for (const d of statusDots) {
       ctx.beginPath();

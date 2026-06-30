@@ -297,6 +297,12 @@ a { color: inherit; text-decoration: none; }
   background: var(--panel);
   padding: 24px;
   margin-bottom: 18px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.exp-job:hover {
+  transform: translateY(-2px);
+  border-color: var(--amber);
+  box-shadow: 0 10px 28px rgba(245, 179, 66, 0.08);
 }
 
 .exp-job-head {
@@ -347,9 +353,22 @@ a { color: inherit; text-decoration: none; }
   width: 0%;
   border-radius: 3px;
   background: linear-gradient(90deg, var(--blue), var(--amber));
+  position: relative;
+  overflow: hidden;
 }
-.gantt-fill.filled {
-  animation: fill-bar 1s ease-out forwards;
+.gantt-fill.shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  animation: gantt-shimmer 0.75s ease-in-out forwards;
+}
+@keyframes gantt-shimmer {
+  from { left: -60%; }
+  to { left: 120%; }
 }
 
 .exp-bullets {
