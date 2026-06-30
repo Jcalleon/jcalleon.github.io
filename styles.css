@@ -766,7 +766,7 @@ section {
   gap: 0;
   max-width: 620px;
   margin-top: -100vh;
-  padding-top: 22vh;
+  padding-top: 40px;
 }
 
 .exp-case {
@@ -1218,7 +1218,7 @@ section {
   .cred-grid { grid-template-columns: repeat(2, 1fr); }
   .cred-card-span { grid-column: span 2; }
   .lab-grid { grid-template-columns: 1fr; }
-  .exp-cases { max-width: 100%; padding-top: 20vh; }
+  .exp-cases { max-width: 100%; padding-top: 32px; }
 }
 
 /* ==========================================================================
@@ -1446,7 +1446,7 @@ section {
   .cred-card-span { grid-column: span 1; flex-direction: column; align-items: flex-start; gap: 6px; }
   .cred-card-span h3 { margin-bottom: 6px; }
   .exp-field-stage { height: 46vh; min-height: 280px; max-height: 380px; }
-  .exp-cases { max-width: 100%; margin-top: calc(-46vh); padding-top: calc(46vh - 100px); }
+  .exp-cases { max-width: 100%; margin-top: calc(-46vh); padding-top: calc(46vh - 380px); }
   .exp-case { padding: 22px 18px 48px 22px; }
   .skills-row { grid-template-columns: 1fr; gap: 8px; }
   .qc-header { padding: 56px 20px 40px; }
