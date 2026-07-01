@@ -1192,6 +1192,10 @@ section {
   .lab-card:nth-of-type(2) { animation-delay: 0.06s; }
   .lab-card:nth-of-type(3) { animation-delay: 0.10s; }
   .lab-card:nth-of-type(4) { animation-delay: 0.14s; }
+  .lab-card:nth-of-type(5) { animation-delay: 0.18s; }
+  .lab-card:nth-of-type(6) { animation-delay: 0.22s; }
+  .lab-card:nth-of-type(7) { animation-delay: 0.26s; }
+  .lab-card:nth-of-type(8) { animation-delay: 0.30s; }
 }
 
 /* ==========================================================================
