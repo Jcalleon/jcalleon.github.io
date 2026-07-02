@@ -284,22 +284,25 @@
 
 <!-- ============ EXPERIENCE LOG (full-bleed sticky field) ============ -->
 <section class="experience" id="experience">
+
+  <!-- Secondary sticky sub-header — pinned just below the main nav for as
+       long as any part of this section is in view. Pure CSS: this is the
+       section's first child, so `position: sticky` makes it appear the
+       instant you scroll in and scroll away naturally once the section
+       ends, no JS required. -->
+  <div class="exp-subheader">
+    <div class="exp-subheader-inner">Experience</div>
+  </div>
+
   <div class="exp-scroller" id="exp-scroller">
 
     <!-- FULL-BLEED STICKY BACKDROP — a field of drifting security glyphs
          (locks, shields, IPs, terminals, hooded operators) spans the entire
          viewport width behind the text. Breaks out of the section's
-         max-width container intentionally. The heading now lives inside
-         this stage (not as separate flow content above it) so the
-         full-screen sticky effect is what you see the instant you scroll
-         into this section, rather than after a plain heading scrolls by. -->
+         max-width container intentionally. -->
     <div class="exp-field-stage">
       <canvas id="exp-canvas" class="exp-canvas" aria-hidden="true"></canvas>
       <div class="exp-field-scrim"></div>
-      <div class="section-head exp-field-head">
-        <h2>Experience</h2>
-        <p class="section-sub">Five years, five postings — from help desk to MSP networking to enterprise security engineering. Each role added a layer; none of them got discarded.</p>
-      </div>
     </div>
 
     <!-- SCROLLING CASE FILES -->

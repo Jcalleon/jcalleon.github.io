@@ -1528,8 +1528,11 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     if (!casesEl) { exclX0 = 0; exclX1 = 0; return; }
     const stageRect = stage.getBoundingClientRect();
     const casesRect = casesEl.getBoundingClientRect();
-    exclX0 = Math.max(0, casesRect.left - stageRect.left - 24);
-    exclX1 = Math.min(width, casesRect.right - stageRect.left + 24);
+    // Tight inset — nodes are meant to hug close to the text now, not sit
+    // far off to the side. This only keeps them from rendering directly on
+    // top of the words themselves.
+    exclX0 = Math.max(0, casesRect.left - stageRect.left - 10);
+    exclX1 = Math.min(width, casesRect.right - stageRect.left + 10);
   }
 
   function pushOutsideExclusion(x, y) {
@@ -1538,11 +1541,11 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     // because this runs every frame for hero nodes — a random offset here
     // would make them visibly jitter/teleport each tick.
     const bandWidth = exclX1 - exclX0;
-    if (bandWidth <= 0 || bandWidth > width * 0.86) return x;
+    if (bandWidth <= 0 || bandWidth > width * 0.92) return x;
     if (x > exclX0 && x < exclX1) {
       const distLeft = x - exclX0;
       const distRight = exclX1 - x;
-      return distLeft < distRight ? exclX0 - 22 : exclX1 + 22;
+      return distLeft < distRight ? exclX0 - 12 : exclX1 + 12;
     }
     return x;
   }
@@ -1551,11 +1554,11 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
   // hero/ambient starting slots aren't all pinned to the exact same margin.
   function pushOutsideExclusionSeeded(x, y) {
     const bandWidth = exclX1 - exclX0;
-    if (bandWidth <= 0 || bandWidth > width * 0.86) return x;
+    if (bandWidth <= 0 || bandWidth > width * 0.92) return x;
     if (x > exclX0 && x < exclX1) {
       const distLeft = x - exclX0;
       const distRight = exclX1 - x;
-      return distLeft < distRight ? exclX0 - 18 - Math.random() * 30 : exclX1 + 18 + Math.random() * 30;
+      return distLeft < distRight ? exclX0 - 6 - Math.random() * 18 : exclX1 + 6 + Math.random() * 18;
     }
     return x;
   }
@@ -1565,9 +1568,11 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     computeExclusionZone();
     const narrowViewport = (exclX1 - exclX0) > width * 0.86;
 
-    // Hero nodes: one per case. On wide viewports they live in the open
-    // right-hand area; on narrow ones (where text fills the width) they
-    // fall back to a slim top strip above the first card.
+    // Hero nodes: one per case. On wide viewports they alternate left/right,
+    // hugging close to the text column's edges so they visibly flank the
+    // words rather than clustering in a distant grid off to one side; on
+    // narrow ones (where text fills the width) they fall back to a slim
+    // top strip above the first card.
     const heroCount = cases.length;
     for (let i = 0; i < heroCount; i++) {
       let bx, by;
@@ -1575,10 +1580,11 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
         bx = width * (0.12 + (i / Math.max(1, heroCount - 1)) * 0.76);
         by = height * 0.12 + (Math.random() - 0.5) * 14;
       } else {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        bx = pushOutsideExclusionSeeded(exclX1 + width * 0.08 + col * (width - exclX1) * 0.4, 0);
-        by = height * (0.22 + row * 0.26) + (Math.random() - 0.5) * 30;
+        const side = i % 2 === 0 ? -1 : 1;
+        const edgeX = side < 0 ? exclX0 : exclX1;
+        const reach = side < 0 ? Math.min(exclX0, width * 0.22) : Math.min(width - exclX1, width * 0.22);
+        bx = edgeX + side * (18 + Math.random() * Math.max(24, reach));
+        by = height * (0.16 + Math.floor(i / 2) * 0.22) + (Math.random() - 0.5) * 30;
       }
       nodes.push({
         kind: 'hero',

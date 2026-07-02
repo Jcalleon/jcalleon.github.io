@@ -694,11 +694,34 @@ section {
    ========================================================================== */
 .experience {
   position: relative;
-  /* No top padding at all — the sticky full-screen field stage (and its
-     overlaid heading) should be the very first thing visible the instant
-     you scroll into this section, edge to edge, not preceded by a plain
-     padded heading like every other section. */
+  /* No top padding — the sub-header below is compact and the full-screen
+     field stage after it should begin almost immediately. */
   padding-top: 0;
+}
+
+/* Secondary sticky sub-header, replaces a standalone section heading for
+   this section only. Pinned directly under the main nav for as long as
+   any part of the section is in view. */
+.exp-subheader {
+  position: sticky;
+  top: 60px;
+  z-index: 50;
+  background: rgba(13, 17, 23, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.exp-subheader-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 14px 32px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--steel);
 }
 
 /* ---------------------------------------------------------------------
@@ -750,25 +773,6 @@ section {
   pointer-events: none;
 }
 
-/* Heading now lives inside the sticky stage as a pinned overlay — visible
-   the instant the section comes into view, staying in place (like the
-   canvas behind it) while the case cards scroll up from below. Positioned
-   to align with the same content column every other section's heading
-   uses, even though the stage itself is full-bleed 100vw. */
-.exp-field-head {
-  position: absolute;
-  top: 96px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 1180px;
-  padding: 0 32px;
-  box-sizing: border-box;
-  margin-bottom: 0;
-  z-index: 2;
-  pointer-events: none;
-}
-
 /* readout label removed — org/date already shown in each case card */
 
 /* ---------------------------------------------------------------------
@@ -782,13 +786,9 @@ section {
   display: flex;
   flex-direction: column;
   gap: 0;
-  max-width: 620px;
-  margin-top: -100vh;
-  /* Enough clearance for the pinned heading overlay (.exp-field-head) to
-     read on its own for a beat before the first case card slides up
-     underneath it — otherwise the two collide right at the top of the
-     stage. */
-  padding-top: 260px;
+  max-width: 900px;
+  margin: -100vh auto 0;
+  padding-top: 64px;
 }
 
 .exp-case {
@@ -1471,10 +1471,9 @@ section {
   .cred-grid { grid-template-columns: 1fr; }
   .cred-card-span { grid-column: span 1; flex-direction: column; align-items: flex-start; gap: 6px; }
   .cred-card-span h3 { margin-bottom: 6px; }
+  .exp-subheader-inner { padding: 12px 20px; }
   .exp-field-stage { height: 46vh; min-height: 280px; max-height: 380px; }
-  .exp-field-head { top: 16px; padding: 0 20px; }
-  .exp-field-head .section-sub { display: none; } /* stage is too short on mobile for both heading + subtitle to fit before cards start */
-  .exp-cases { max-width: 100%; margin-top: calc(-46vh); padding-top: calc(46vh - 380px + 88px); }
+  .exp-cases { max-width: 100%; margin-top: calc(-46vh); padding-top: calc(46vh - 380px); }
   .exp-case { padding: 22px 18px 48px 22px; }
   .skills-row { grid-template-columns: 1fr; gap: 8px; }
   .qc-header { padding: 56px 20px 40px; }
