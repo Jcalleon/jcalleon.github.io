@@ -1586,27 +1586,45 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     // and mouse parallax never carry a node past the visible edge of the
     // canvas — that clipped look where an icon is sliced by the stage
     // boundary. minY additionally clears the sticky sub-header bar.
-    const EDGE_PAD = 46;
+    // Hero nodes draw a soft glow out to r*2.1 (see drawNode) — the clamp
+    // has to account for that full glow radius, not just the icon itself,
+    // or the glow gets sliced at the canvas edge even though the icon is
+    // technically "inside."
+    const EDGE_PAD = 20;
+    const HERO_GLOW_MULT = 2.2;
     const minY = topSafeZone + EDGE_PAD;
     function clampX(x, r) { return Math.max(r + EDGE_PAD, Math.min(width - r - EDGE_PAD, x)); }
     function clampY(y, r) { return Math.max(minY + r, Math.min(height - r - EDGE_PAD, y)); }
 
     const heroCount = cases.length;
+    // Left/right assignment first, so each side's row spacing is computed
+    // from ITS OWN count — otherwise an odd split (e.g. 3 left / 2 right)
+    // leaves one side bunched in the upper half while the other spans the
+    // full height.
+    const leftIdxs = [], rightIdxs = [];
+    for (let i = 0; i < heroCount; i++) (i % 2 === 0 ? leftIdxs : rightIdxs).push(i);
+
     for (let i = 0; i < heroCount; i++) {
       let bx, by;
       const r = Math.min(width, height) * (narrowViewport ? 0.034 : 0.05);
+      const heroR = narrowViewport ? r : r * HERO_GLOW_MULT;
       if (narrowViewport) {
         bx = width * (0.12 + (i / Math.max(1, heroCount - 1)) * 0.76);
         by = minY + height * 0.06 + (Math.random() - 0.5) * 14;
       } else {
         const side = i % 2 === 0 ? -1 : 1;
+        const list = side < 0 ? leftIdxs : rightIdxs;
+        const posInSide = list.indexOf(i);
+        const sideFrac = list.length > 1 ? posInSide / (list.length - 1) : 0.5;
         const edgeX = side < 0 ? exclX0 : exclX1;
-        const reach = side < 0 ? Math.min(exclX0, width * 0.22) : Math.min(width - exclX1, width * 0.22);
-        bx = edgeX + side * (18 + Math.random() * Math.max(24, reach));
-        by = minY + height * (0.10 + Math.floor(i / 2) * 0.22) + (Math.random() - 0.5) * 30;
+        // Tight, consistent hug distance — reads as framing the text
+        // rather than drifting off into open space.
+        const hug = 30 + Math.random() * 44;
+        bx = edgeX + side * hug;
+        by = minY + height * (0.16 + sideFrac * 0.6) + (Math.random() - 0.5) * 22;
       }
-      bx = clampX(bx, r);
-      by = clampY(by, r);
+      bx = clampX(bx, heroR);
+      by = clampY(by, heroR);
       nodes.push({
         kind: 'hero',
         caseIndex: i,
@@ -1999,9 +2017,12 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
 
       // Keep every node fully on-canvas and clear of the sub-header, even
       // mid-orbit/parallax — this is what actually stops icons from
-      // looking sliced off at the top or the left/right page edges.
-      drawX = Math.max(n.r + 4, Math.min(width - n.r - 4, drawX));
-      drawY = Math.max(topSafeZone + n.r + 4, Math.min(height - n.r - 4, drawY));
+      // looking sliced off at the top or the left/right page edges. Hero
+      // nodes draw a glow out to r*2.1 (see drawNode), so their effective
+      // radius for clamping purposes is much bigger than the icon itself.
+      const visR = n.kind === 'hero' ? n.r * 2.2 : n.r;
+      drawX = Math.max(visR + 4, Math.min(width - visR - 4, drawX));
+      drawY = Math.max(topSafeZone + visR + 4, Math.min(height - visR - 4, drawY));
 
       if (n.kind === 'hero') {
         const isActive = n.caseIndex === activeIdx;
