@@ -510,6 +510,12 @@ const EXPERIENCE_LENSES = {
   const labelEl = document.getElementById("lens-label");
   if (labelEl) labelEl.textContent = chosen.label;
 
+  // Experience section's sticky sub-header echoes the same chosen lens,
+  // so it reads "Experience — Cybersecurity" / "— Network Engineering" /
+  // etc. instead of a static, lens-agnostic label.
+  const expSubheaderEl = document.getElementById("exp-subheader-label");
+  if (expSubheaderEl) expSubheaderEl.textContent = `Experience — ${chosen.label}`;
+
   for (const n of [1, 2, 3]) {
     const qEl = document.getElementById(`qa-q-${n}`);
     const aEl = document.getElementById(`qa-a-${n}`);
@@ -1522,6 +1528,9 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
   // -------------------------------------------------------------------
   let nodes = [];
   let exclX0 = 0, exclX1 = 0; // text column's left/right edge, in stage-local coords
+  let topSafeZone = 0; // height of the sticky sub-header bar — nodes stay clear of it so they don't look sliced off at the top
+
+  const subheaderEl = document.querySelector('.exp-subheader');
 
   function computeExclusionZone() {
     const casesEl = scroller.querySelector('.exp-cases');
@@ -1573,19 +1582,31 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     // words rather than clustering in a distant grid off to one side; on
     // narrow ones (where text fills the width) they fall back to a slim
     // top strip above the first card.
+    // Generous margin beyond each node's own radius/orbit swing, so drift
+    // and mouse parallax never carry a node past the visible edge of the
+    // canvas — that clipped look where an icon is sliced by the stage
+    // boundary. minY additionally clears the sticky sub-header bar.
+    const EDGE_PAD = 46;
+    const minY = topSafeZone + EDGE_PAD;
+    function clampX(x, r) { return Math.max(r + EDGE_PAD, Math.min(width - r - EDGE_PAD, x)); }
+    function clampY(y, r) { return Math.max(minY + r, Math.min(height - r - EDGE_PAD, y)); }
+
     const heroCount = cases.length;
     for (let i = 0; i < heroCount; i++) {
       let bx, by;
+      const r = Math.min(width, height) * (narrowViewport ? 0.034 : 0.05);
       if (narrowViewport) {
         bx = width * (0.12 + (i / Math.max(1, heroCount - 1)) * 0.76);
-        by = height * 0.12 + (Math.random() - 0.5) * 14;
+        by = minY + height * 0.06 + (Math.random() - 0.5) * 14;
       } else {
         const side = i % 2 === 0 ? -1 : 1;
         const edgeX = side < 0 ? exclX0 : exclX1;
         const reach = side < 0 ? Math.min(exclX0, width * 0.22) : Math.min(width - exclX1, width * 0.22);
         bx = edgeX + side * (18 + Math.random() * Math.max(24, reach));
-        by = height * (0.16 + Math.floor(i / 2) * 0.22) + (Math.random() - 0.5) * 30;
+        by = minY + height * (0.10 + Math.floor(i / 2) * 0.22) + (Math.random() - 0.5) * 30;
       }
+      bx = clampX(bx, r);
+      by = clampY(by, r);
       nodes.push({
         kind: 'hero',
         caseIndex: i,
@@ -1593,7 +1614,7 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
         baseX: bx,
         baseY: by,
         x: 0, y: 0,
-        r: Math.min(width, height) * (narrowViewport ? 0.034 : 0.05),
+        r,
         phase: Math.random() * Math.PI * 2,
         orbitRadius: (narrowViewport ? 10 : 26) + Math.random() * (narrowViewport ? 8 : 20),
         orbitSpeed: (0.00018 + Math.random() * 0.00014) * (Math.random() < 0.5 ? 1 : -1),
@@ -1607,16 +1628,19 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     // Kept out of the exclusion band too (or heavily dimmed if narrow).
     const ambientCount = Math.max(8, Math.min(20, Math.floor((width * height) / 30000)));
     for (let i = 0; i < ambientCount; i++) {
+      const r = Math.min(width, height) * (0.012 + Math.random() * 0.012);
       let bx = Math.random() * width;
-      const by = Math.random() * height;
+      let by = minY + Math.random() * Math.max(1, height - minY);
       if (!narrowViewport) bx = pushOutsideExclusionSeeded(bx, by);
+      bx = clampX(bx, r);
+      by = clampY(by, r);
       nodes.push({
         kind: 'ambient',
         icon: ICON_TYPES[Math.floor(Math.random() * ICON_TYPES.length)],
         baseX: bx,
         baseY: by,
         x: 0, y: 0,
-        r: Math.min(width, height) * (0.012 + Math.random() * 0.012),
+        r,
         phase: Math.random() * Math.PI * 2,
         orbitRadius: 14 + Math.random() * 26,
         orbitSpeed: (0.00022 + Math.random() * 0.00018) * (Math.random() < 0.5 ? 1 : -1),
@@ -1643,6 +1667,7 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     canvas.style.width = width + 'px';
     canvas.style.height = height + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    topSafeZone = subheaderEl ? subheaderEl.getBoundingClientRect().height : 0;
     buildField();
   }
 
@@ -1971,6 +1996,12 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
       if (n.kind === 'hero') {
         drawX = pushOutsideExclusion(drawX, drawY);
       }
+
+      // Keep every node fully on-canvas and clear of the sub-header, even
+      // mid-orbit/parallax — this is what actually stops icons from
+      // looking sliced off at the top or the left/right page edges.
+      drawX = Math.max(n.r + 4, Math.min(width - n.r - 4, drawX));
+      drawY = Math.max(topSafeZone + n.r + 4, Math.min(height - n.r - 4, drawY));
 
       if (n.kind === 'hero') {
         const isActive = n.caseIndex === activeIdx;
