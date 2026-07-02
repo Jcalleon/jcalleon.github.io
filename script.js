@@ -492,7 +492,19 @@ const EXPERIENCE_LENSES = {
 
 (function applyRandomLens() {
   const keys = Object.keys(ABOUT_LENSES);
-  const chosenKey = keys[Math.floor(Math.random() * keys.length)];
+
+  // Never repeat the lens shown immediately before this load/refresh.
+  // Persisted in localStorage (not sessionStorage) so it holds even across
+  // closing and reopening the tab, not just within one browsing session.
+  const STORAGE_KEY = "lastLens";
+  let previousKey = null;
+  try { previousKey = localStorage.getItem(STORAGE_KEY); } catch (e) { /* privacy mode, etc. */ }
+
+  const pool = (previousKey && keys.length > 1) ? keys.filter((k) => k !== previousKey) : keys;
+  const chosenKey = pool[Math.floor(Math.random() * pool.length)];
+
+  try { localStorage.setItem(STORAGE_KEY, chosenKey); } catch (e) { /* privacy mode, etc. */ }
+
   const chosen = ABOUT_LENSES[chosenKey];
 
   const labelEl = document.getElementById("lens-label");
@@ -1664,6 +1676,7 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     const sy = window.scrollY;
     const delta = sy - lastScrollY;
     lastScrollY = sy;
+    updateActiveCase();
     if (Math.abs(delta) > 0.5) {
       scrollDir = delta > 0 ? 1 : -1;
       scrollKickTarget = Math.min(1, Math.abs(delta) / 38);
@@ -1682,18 +1695,41 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     cases.forEach(c => c.classList.toggle('is-active', c === caseEl));
   }
 
-  const observer = new IntersectionObserver((entries) => {
-    let best = null, bestDist = Infinity;
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const rect = entry.target.getBoundingClientRect();
-      const center = rect.top + rect.height / 2;
-      const dist = Math.abs(center - window.innerHeight / 2);
-      if (dist < bestDist) { bestDist = dist; best = entry.target; }
-    });
-    if (best) setActive(best);
-  }, { root: null, rootMargin: '-20% 0px -20% 0px', threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] });
-  cases.forEach(c => observer.observe(c));
+  // Active-case detection: recomputed across ALL cards every animation
+  // frame (cheap — there are only 5), instead of IntersectionObserver's
+  // threshold-crossing callbacks. The observer version only ever compared
+  // whichever cards happened to cross a threshold in a given batch, not the
+  // full set, so two adjacent cards near their shared boundary would flip
+  // "closest to center" back and forth rapidly while scrolling — the
+  // glitchy strobing. A hysteresis margin (the new candidate has to be
+  // meaningfully closer, not just marginally) keeps the handoff a clean,
+  // one-way sweep instead of a stutter.
+  const ACTIVE_SWITCH_MARGIN = 48;
+
+  function updateActiveCase() {
+    let best = activeCase;
+    let bestDist = Infinity;
+    const viewportCenter = window.innerHeight / 2;
+
+    for (const c of cases) {
+      const rect = c.getBoundingClientRect();
+      if (rect.bottom <= 0 || rect.top >= window.innerHeight) continue; // fully offscreen
+      const dist = Math.abs((rect.top + rect.height / 2) - viewportCenter);
+      if (dist < bestDist) { bestDist = dist; best = c; }
+    }
+
+    if (best === activeCase) return;
+
+    const activeRect = activeCase.getBoundingClientRect();
+    const activeOnscreen = activeRect.bottom > 0 && activeRect.top < window.innerHeight;
+    const activeDist = Math.abs((activeRect.top + activeRect.height / 2) - viewportCenter);
+
+    // Hold the current card unless the challenger is clearly closer, or the
+    // current card has scrolled off entirely.
+    if (activeOnscreen && (activeDist - bestDist) < ACTIVE_SWITCH_MARGIN) return;
+
+    setActive(best);
+  }
 
   // -------------------------------------------------------------------
   // Icon renderers — local space centered on (0,0)
@@ -1908,6 +1944,8 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     mouseX += (targetMouseX - mouseX) * ease;
     mouseY += (targetMouseY - mouseY) * ease;
     scrollKick += (scrollKickTarget - scrollKick) * (reduceMotion ? 1 : 0.08);
+
+    updateActiveCase();
 
     ctx.clearRect(0, 0, width, height);
 

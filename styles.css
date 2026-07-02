@@ -434,7 +434,7 @@ ul { list-style: none; }
 section {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 96px 32px;
+  padding: 76px 32px;
   position: relative;
   z-index: 1;
 }
@@ -694,6 +694,11 @@ section {
    ========================================================================== */
 .experience {
   position: relative;
+  /* Tighter than the default section padding — the sticky field stage
+     right below the heading is already a strong visual break (full-bleed
+     background change), so it doesn't need as much extra buffer above it
+     as a normal section-to-section boundary does. */
+  padding-top: 48px;
 }
 
 .experience .section-head {
