@@ -1,0 +1,24 @@
+# OS / archive junk
+.DS_Store
+Thumbs.db
+__MACOSX/
+
+# Node / build artifacts
+node_modules/
+.wrangler/
+
+# These live in their own separate GitHub repos, not this one
+/ansible-infra-toolkit/
+/azure-cli-toolkit/
+/bash-ops-toolkit/
+/cmd-batch-toolkit/
+/powershell-security-toolkit/
+/python-security-automation/
+/terraform-multicloud-toolkit/
+
+# Personal files not meant for the public site repo
+/Provisional/
+/Qualys Certs/
+
+# Reference-only template, not part of the live site
+/portfolio-labs/harvard-resume-template-free-download-pack/
