@@ -564,7 +564,10 @@ section {
 }
 
 .about .section-head {
-  margin-bottom: 64px;
+  /* Enough room for the lens-specific animation (dashboard, kanban board,
+     ticket thread, etc.) — needs real height, not the old thin
+     signal-line strip. */
+  margin-bottom: 210px;
 }
 
 .waveform-canvas {
@@ -1450,6 +1453,7 @@ section {
   .exposure-canvas, .exposure-labels { mask-image: linear-gradient(to bottom, transparent 0%, transparent 5%, black 7%, black 9%, transparent 11%); }
   section { padding: 64px 20px; }
   .lab .section-head { margin-bottom: 150px; }
+  .about .section-head { margin-bottom: 175px; }
   .readout-grid { grid-template-columns: 1fr 1fr; }
   .readout-value { font-size: 24px; }
   .comp-grid { grid-template-columns: 1fr; }

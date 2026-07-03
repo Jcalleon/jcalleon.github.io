@@ -505,6 +505,11 @@ const EXPERIENCE_LENSES = {
 
   try { localStorage.setItem(STORAGE_KEY, chosenKey); } catch (e) { /* privacy mode, etc. */ }
 
+  // Exposed globally so the About-section background animation (which
+  // initializes later in this file) can match its visual to the same
+  // lens, without restructuring these into one big module.
+  window.__activeLens = chosenKey;
+
   const chosen = ABOUT_LENSES[chosenKey];
 
   const labelEl = document.getElementById("lens-label");
@@ -2242,9 +2247,17 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
 })();
 
 // ===========================================================================
-// WAVEFORM ANIMATION — thin animated signal line in the gap between the
-// "About" heading and the photo/video + bio grid. Suggests "signal" /
-// monitoring without competing with the placeholders or dense bio text.
+// LENS SIGNAL ANIMATION — replaces the old plain waveform line. Instead of
+// one generic signal, the band between the About heading and the photo/bio
+// grid now shows a different mini-animation depending on which lens
+// applyRandomLens() picked for this load (window.__activeLens), so the
+// visual matches the text:
+//   cybersecurity     -> incident-response pipeline (Detect -> Recover)
+//   networking        -> bandwidth/interface dashboard (Grafana/Nagios-ish)
+//   infrastructure    -> live process monitor (Sysmon-ish), flagged rows
+//   helpdesk          -> a support ticket thread with an SLA countdown
+//   projectmanagement -> a kanban board, cards moving through stages
+//   cloud             -> a scrolling Azure CLI terminal session
 // ===========================================================================
 (function () {
   const canvas = document.getElementById('waveform-canvas');
@@ -2255,11 +2268,18 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
 
   let width, height, dpr;
   let rafId = null;
-  let phase = 0;
   let bandTop = 0, bandHeight = 40;
+  let lastTime = performance.now();
+  let elapsed = 0;
+  let isMobile = false;
 
-  const LINE = 'rgba(91, 143, 176, 0.45)';
-  const LINE_DIM = 'rgba(91, 143, 176, 0.18)';
+  const COL_STEEL     = '145, 190, 220';
+  const COL_STEEL_DIM = '91, 143, 176';
+  const COL_DIM        = '139, 148, 163';
+  const COL_GREEN      = '63, 182, 140';
+  const COL_AMBER      = '240, 169, 60';
+  const COL_RED        = '240, 106, 92';
+  const COL_TEXT       = '230, 232, 235';
 
   function resize() {
     const rect = canvas.parentElement.getBoundingClientRect();
@@ -2271,6 +2291,7 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     canvas.style.width = width + 'px';
     canvas.style.height = height + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    isMobile = width < 640;
   }
 
   function measureBand() {
@@ -2280,46 +2301,598 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     const sectionTop = sectionEl.getBoundingClientRect().top;
     const headBottom = headEl ? headEl.getBoundingClientRect().bottom - sectionTop : 80;
     const gridTop = gridEl ? gridEl.getBoundingClientRect().top - sectionTop : 140;
-    const margin = 10;
-    bandTop = headBottom + margin;
-    bandHeight = Math.max(16, gridTop - bandTop - margin);
+
+    const minMargin = isMobile ? 18 : 26;
+    const idealHeight = isMobile ? 150 : 190;
+    const gapAvailable = Math.max(60, gridTop - headBottom);
+    bandHeight = Math.min(idealHeight, Math.max(60, gapAvailable - minMargin * 2));
+    const freeSpace = gapAvailable - bandHeight;
+    const topMargin = Math.max(minMargin, freeSpace / 2);
+    bandTop = headBottom + topMargin;
   }
 
-  function drawWave(yOffset, amplitude, color, lineWidth, freq, phaseShift) {
-    const midY = bandTop + bandHeight / 2 + yOffset;
+  function drawPanel(x, y, w, h, r) {
     ctx.beginPath();
-    for (let x = 0; x <= width; x += 4) {
-      const y = midY + Math.sin((x * freq) + phase + phaseShift) * amplitude;
-      if (x === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = color;
-    ctx.lineWidth = lineWidth;
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+  }
+
+  function panelBG(x, y, w, h, r) {
+    drawPanel(x, y, w, h, r);
+    ctx.fillStyle = 'rgba(13, 17, 23, 0.78)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(91, 143, 176, 0.2)';
+    ctx.lineWidth = 1;
     ctx.stroke();
   }
 
-  function step() {
+  function mono(size) { ctx.font = `${size}px "JetBrains Mono", monospace`; }
+
+  // -------------------------------------------------------------------
+  // 1. CYBERSECURITY — Incident Response pipeline. Incidents (dots) flow
+  // left-to-right through Detect -> Triage -> Contain -> Eradicate ->
+  // Recover, shifting red -> amber -> green as they resolve.
+  // -------------------------------------------------------------------
+  const IR = {
+    stages: [], incidents: [], resolvedCount: 0,
+    build() {
+      const labels = ['Detect', 'Triage', 'Contain', 'Eradicate', 'Recover'];
+      const margin = isMobile ? 20 : 54;
+      const usable = width - margin * 2;
+      const stageW = usable / labels.length;
+      const lineY = bandTop + (isMobile ? 44 : 54);
+      this.stages = labels.map((label, i) => ({ label, x: margin + stageW * i, w: stageW }));
+      this.lineY = lineY;
+      this.x0 = this.stages[0].x + 6;
+      this.x1 = this.stages[this.stages.length - 1].x + this.stages[this.stages.length - 1].w - 6;
+      this.incidents = [];
+      const n = isMobile ? 3 : 5;
+      for (let i = 0; i < n; i++) {
+        this.incidents.push({ progress: Math.random() * 1.1 - 0.1, speed: 0.00016 + Math.random() * 0.00014, lane: (Math.random() - 0.5) * 14 });
+      }
+    },
+    update(dt) {
+      if (reduceMotion) return;
+      this.incidents.forEach((b) => {
+        b.progress += b.speed * dt;
+        if (b.progress > 1.12) { b.progress = -0.1; b.lane = (Math.random() - 0.5) * 14; this.resolvedCount++; }
+      });
+    },
+    draw() {
+      panelBG(0, bandTop, width, bandHeight, 8);
+      mono(11);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillStyle = `rgba(${COL_DIM}, 0.75)`;
+      ctx.fillText('INCIDENT RESPONSE', 16, bandTop + 14);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = `rgba(${COL_GREEN}, 0.75)`;
+      ctx.fillText(`RESOLVED THIS SESSION: ${this.resolvedCount}`, width - 16, bandTop + 14);
+
+      ctx.beginPath();
+      ctx.moveTo(this.x0, this.lineY);
+      ctx.lineTo(this.x1, this.lineY);
+      ctx.strokeStyle = 'rgba(91,143,176,0.3)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      this.stages.forEach((s) => {
+        const cx = s.x + s.w / 2;
+        ctx.beginPath();
+        ctx.arc(cx, this.lineY, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(22,27,34,0.95)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(91,143,176,0.55)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = `rgba(${COL_DIM}, 0.9)`;
+        mono(isMobile ? 9.5 : 10.5);
+        ctx.fillText(s.label, cx, this.lineY + 14);
+      });
+
+      this.incidents.forEach((b) => {
+        const t = Math.max(0, Math.min(1, b.progress));
+        const px = this.x0 + t * (this.x1 - this.x0);
+        const py = this.lineY + b.lane;
+        const color = t < 0.35 ? COL_RED : t < 0.72 ? COL_AMBER : COL_GREEN;
+        const grad = ctx.createRadialGradient(px, py, 0, px, py, 9);
+        grad.addColorStop(0, `rgba(${color}, 0.45)`);
+        grad.addColorStop(1, `rgba(${color}, 0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(px, py, 3.2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${color}, 0.95)`;
+        ctx.fill();
+      });
+    }
+  };
+
+  // -------------------------------------------------------------------
+  // 2. NETWORKING — Grafana/Nagios-style dashboard: scrolling area graph
+  // (in/out throughput) on the left, interface status list on the right.
+  // -------------------------------------------------------------------
+  const NET = {
+    inSeries: [], outSeries: [], ifaces: [],
+    build() {
+      const points = 60;
+      this.inSeries = Array.from({ length: points }, () => 0.35 + Math.random() * 0.25);
+      this.outSeries = Array.from({ length: points }, () => 0.18 + Math.random() * 0.2);
+      this.ifaces = [
+        { name: 'eth0', mbps: 842, status: COL_GREEN },
+        { name: 'wan0', mbps: 391, status: COL_GREEN },
+        { name: 'eth1', mbps: 58, status: COL_AMBER }
+      ];
+      this.tick = 0;
+    },
+    update(dt) {
+      if (reduceMotion) return;
+      this.tick += dt;
+      if (this.tick < 90) return;
+      this.tick = 0;
+      const lastIn = this.inSeries[this.inSeries.length - 1];
+      const lastOut = this.outSeries[this.outSeries.length - 1];
+      this.inSeries.push(Math.max(0.08, Math.min(0.92, lastIn + (Math.random() - 0.5) * 0.14)));
+      this.inSeries.shift();
+      this.outSeries.push(Math.max(0.05, Math.min(0.7, lastOut + (Math.random() - 0.5) * 0.1)));
+      this.outSeries.shift();
+      this.ifaces[0].mbps = Math.round(700 + this.inSeries[this.inSeries.length - 1] * 300);
+      this.ifaces[2].mbps = Math.round(20 + this.inSeries[this.inSeries.length - 1] * 80);
+    },
+    drawSeries(series, x, y, w, h, colorRgb, fillAlpha) {
+      ctx.beginPath();
+      series.forEach((v, i) => {
+        const px = x + (i / (series.length - 1)) * w;
+        const py = y + h - v * h;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.strokeStyle = `rgba(${colorRgb}, 0.85)`;
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x, y + h);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${colorRgb}, ${fillAlpha})`;
+      ctx.fill();
+    },
+    draw() {
+      panelBG(0, bandTop, width, bandHeight, 8);
+      const padX = 16, padTop = 14;
+      const rightW = isMobile ? 0 : Math.min(190, width * 0.28);
+      const graphW = width - padX * 2 - rightW - (rightW ? 16 : 0);
+      const graphX = padX, graphY = bandTop + padTop + 16, graphH = bandHeight - padTop * 2 - 16;
+
+      mono(11);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillStyle = `rgba(${COL_DIM}, 0.75)`;
+      ctx.fillText('NETWORK THROUGHPUT', graphX, bandTop + padTop - 2);
+
+      // Live pulse dot
+      const pulse = 0.5 + 0.5 * Math.sin(elapsed * 0.005);
+      ctx.beginPath();
+      ctx.arc(graphX + 118, bandTop + padTop + 3, 3, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${COL_GREEN}, ${0.4 + pulse * 0.5})`;
+      ctx.fill();
+
+      // gridlines
+      ctx.strokeStyle = 'rgba(91,143,176,0.12)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 3; i++) {
+        const gy = graphY + (graphH / 3) * i;
+        ctx.beginPath(); ctx.moveTo(graphX, gy); ctx.lineTo(graphX + graphW, gy); ctx.stroke();
+      }
+
+      this.drawSeries(this.outSeries, graphX, graphY, graphW, graphH, COL_STEEL_DIM, 0.12);
+      this.drawSeries(this.inSeries, graphX, graphY, graphW, graphH, COL_GREEN, 0.14);
+
+      if (!isMobile) {
+        const listX = graphX + graphW + 16;
+        mono(10.5);
+        this.ifaces.forEach((f, i) => {
+          const ry = graphY + i * 30;
+          ctx.beginPath();
+          ctx.arc(listX + 5, ry + 6, 3.2, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${f.status}, 0.9)`;
+          ctx.fill();
+          ctx.fillStyle = `rgba(${COL_TEXT}, 0.85)`;
+          ctx.textAlign = 'left';
+          ctx.fillText(f.name, listX + 16, ry);
+          ctx.textAlign = 'right';
+          ctx.fillStyle = `rgba(${COL_DIM}, 0.85)`;
+          ctx.fillText(`${f.mbps} Mbps`, listX + rightW - 8, ry);
+        });
+      }
+    }
+  };
+
+  // -------------------------------------------------------------------
+  // 3. INFRASTRUCTURE — Sysmon/Process-Monitor-style live process table,
+  // scrolling upward, with occasional flagged rows.
+  // -------------------------------------------------------------------
+  const INFRA = {
+    pool: [
+      { proc: 'svchost.exe', cpu: '1.2%' }, { proc: 'nginx', cpu: '0.4%' },
+      { proc: 'sshd', cpu: '0.1%' }, { proc: 'python3', cpu: '3.8%' },
+      { proc: 'w3wp.exe', cpu: '2.1%' }, { proc: 'chrome.exe', cpu: '6.4%' },
+      { proc: 'dockerd', cpu: '1.9%' }, { proc: 'node', cpu: '2.7%' }
+    ],
+    flagged: [
+      { proc: 'powershell.exe', note: 'spawned by winword.exe' },
+      { proc: 'rundll32.exe', note: 'unsigned module loaded' },
+      { proc: 'cmd.exe', note: 'unexpected child of svchost.exe' }
+    ],
+    rows: [], pending: [], elapsed: 0,
+    build() {
+      this.rows = [];
+      this.pending = [];
+      this.elapsed = 0;
+      this.nextAt = 500;
+    },
+    randRow() {
+      const flagRoll = Math.random() < 0.22;
+      if (flagRoll) {
+        const f = this.flagged[Math.floor(Math.random() * this.flagged.length)];
+        return { proc: f.proc, pid: 1000 + Math.floor(Math.random() * 9000), cpu: (Math.random() * 8 + 4).toFixed(1) + '%', flag: f.note };
+      }
+      const p = this.pool[Math.floor(Math.random() * this.pool.length)];
+      return { proc: p.proc, pid: 1000 + Math.floor(Math.random() * 9000), cpu: p.cpu, flag: null };
+    },
+    update(dt) {
+      this.elapsed += dt;
+      if (this.elapsed >= this.nextAt) {
+        this.elapsed = 0;
+        this.nextAt = 480 + Math.random() * 420;
+        this.rows.push(this.randRow());
+        const capacity = Math.max(3, Math.floor((bandHeight - 40) / (isMobile ? 18 : 20)));
+        if (this.rows.length > capacity) this.rows.shift();
+      }
+    },
+    draw() {
+      panelBG(0, bandTop, width, bandHeight, 8);
+      const padX = 16;
+      mono(11);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillStyle = `rgba(${COL_DIM}, 0.75)`;
+      ctx.fillText('PROCESS MONITOR', padX, bandTop + 12);
+      const pulse = Math.sin(elapsed * 0.006) > 0;
+      ctx.fillStyle = `rgba(${COL_GREEN}, ${pulse ? 0.9 : 0.4})`;
+      ctx.beginPath(); ctx.arc(padX + 138, bandTop + 17, 3, 0, Math.PI * 2); ctx.fill();
+
+      const rowH = isMobile ? 18 : 20;
+      const startY = bandTop + 34;
+      mono(isMobile ? 10.5 : 11.5);
+      this.rows.forEach((r, i) => {
+        const ry = startY + i * rowH;
+        if (ry > bandTop + bandHeight - 6) return;
+        const color = r.flag ? COL_RED : COL_DIM;
+        if (r.flag) {
+          ctx.fillStyle = `rgba(${COL_RED}, 0.08)`;
+          ctx.fillRect(padX - 8, ry - 2, width - (padX - 8) * 2, rowH - 2);
+        }
+        ctx.fillStyle = `rgba(${r.flag ? COL_RED : COL_TEXT}, ${r.flag ? 0.9 : 0.8})`;
+        ctx.fillText(r.flag ? `[ALERT] ${r.proc}` : r.proc, padX, ry);
+        ctx.fillStyle = `rgba(${COL_DIM}, 0.7)`;
+        const midX = isMobile ? width * 0.52 : width * 0.42;
+        ctx.fillText(`PID ${r.pid}`, midX, ry);
+        if (!isMobile) ctx.fillText(`CPU ${r.cpu}`, width * 0.62, ry);
+        if (r.flag && !isMobile) {
+          ctx.fillStyle = `rgba(${COL_RED}, 0.75)`;
+          ctx.textAlign = 'right';
+          ctx.fillText(r.note || '', width - padX, ry);
+          ctx.textAlign = 'left';
+        }
+      });
+    }
+  };
+
+  // -------------------------------------------------------------------
+  // 4. HELP DESK — a support ticket thread with an SLA countdown, User/
+  // Agent messages appearing one at a time, cycling to a new ticket once
+  // resolved.
+  // -------------------------------------------------------------------
+  const HD = {
+    tickets: [
+      { id: '4821', subject: 'Locked out after password expiry', sla: '2h 14m', msgs: [
+        { who: 'User', t: "Hey, I'm locked out again" },
+        { who: 'Agent', t: 'Looking now — resetting your AD password.' },
+        { who: 'Agent', t: "You're unlocked — check email for a temp password." }
+      ]},
+      { id: '4832', subject: "VPN won't connect from home", sla: '3h 40m', msgs: [
+        { who: 'User', t: 'VPN client just spins on connect' },
+        { who: 'Agent', t: 'Can you confirm the client is on v5.2?' },
+        { who: 'User', t: 'Just updated — connecting now, thanks!' }
+      ]},
+      { id: '4849', subject: 'New hire needs M365 access', sla: '5h 02m', msgs: [
+        { who: 'User', t: 'New hire starts Monday, needs full M365 license' },
+        { who: 'Agent', t: 'License assigned and welcome email sent.' }
+      ]}
+    ],
+    idx: -1, visible: 0, elapsed: 0, nextAt: 700, resolved: false,
+    build() { this.idx = -1; this.next(); },
+    next() {
+      this.idx = (this.idx + 1) % this.tickets.length;
+      this.visible = 0;
+      this.elapsed = 0;
+      this.nextAt = 700;
+      this.resolved = false;
+    },
+    update(dt) {
+      const ticket = this.tickets[this.idx];
+      this.elapsed += dt;
+      if (this.visible < ticket.msgs.length) {
+        if (this.elapsed >= this.nextAt) {
+          this.elapsed = 0;
+          this.nextAt = 900 + Math.random() * 500;
+          this.visible++;
+          if (this.visible >= ticket.msgs.length) this.resolved = true;
+        }
+      } else if (this.elapsed >= 2600) {
+        this.next();
+      }
+    },
+    draw() {
+      panelBG(0, bandTop, width, bandHeight, 8);
+      const ticket = this.tickets[this.idx];
+      const padX = 16;
+      mono(11);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillStyle = `rgba(${COL_STEEL}, 0.9)`;
+      ctx.fillText(`#${ticket.id} · ${ticket.subject}`, padX, bandTop + 12);
+
+      ctx.textAlign = 'right';
+      if (this.resolved) {
+        ctx.fillStyle = `rgba(${COL_GREEN}, 0.9)`;
+        ctx.fillText('✓ RESOLVED', width - padX, bandTop + 12);
+      } else {
+        ctx.fillStyle = `rgba(${COL_AMBER}, 0.9)`;
+        ctx.fillText(`SLA ${ticket.sla}`, width - padX, bandTop + 12);
+      }
+      ctx.textAlign = 'left';
+
+      const rowH = isMobile ? 26 : 30;
+      const startY = bandTop + 40;
+      for (let i = 0; i < this.visible; i++) {
+        const m = ticket.msgs[i];
+        const ry = startY + i * rowH;
+        const isUser = m.who === 'User';
+        const tag = isUser ? 'U' : 'A';
+        const tagColor = isUser ? COL_DIM : COL_STEEL;
+        ctx.beginPath();
+        ctx.arc(padX + 8, ry + 8, 8, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${tagColor}, 0.25)`;
+        ctx.fill();
+        mono(9.5);
+        ctx.fillStyle = `rgba(${tagColor}, 0.95)`;
+        ctx.textAlign = 'center';
+        ctx.fillText(tag, padX + 8, ry + 4);
+        ctx.textAlign = 'left';
+        mono(isMobile ? 10.5 : 11.5);
+        ctx.fillStyle = `rgba(${COL_TEXT}, 0.85)`;
+        ctx.fillText(m.t, padX + 24, ry + 1);
+      }
+    }
+  };
+
+  // -------------------------------------------------------------------
+  // 5. PROJECT MANAGEMENT — a kanban board: cards spawn in Backlog and
+  // periodically advance a column until Done, then fade out.
+  // -------------------------------------------------------------------
+  const PM = {
+    labels: ['Backlog', 'In Progress', 'Review', 'Done'],
+    pool: ['Intune MDM Rollout', 'CIS Hardening Initiative', 'Firewall Migration', 'SOC Dashboard Launch', 'Vendor Onboarding', 'DR Runbook Refresh'],
+    cards: [], cols: [], elapsed: 0, nextAt: 600,
+    build() {
+      const margin = isMobile ? 10 : 16;
+      const usable = width - margin * 2;
+      const colW = usable / this.labels.length;
+      this.cols = this.labels.map((label, i) => ({ label, x: margin + colW * i, w: colW }));
+      this.cards = [{ label: this.pool[0], col: 0, x: 0, targetX: 0, used: true }];
+      this.usedLabels = [this.pool[0]];
+      this.elapsed = 0;
+      this.nextAt = 1200;
+      this.positionCard(this.cards[0]);
+    },
+    positionCard(card) {
+      const col = this.cols[card.col];
+      card.targetX = col.x + col.w / 2;
+      if (card.x === 0) card.x = card.targetX;
+    },
+    spawn() {
+      const avail = this.pool.filter((p) => !this.usedLabels.includes(p));
+      const label = (avail.length ? avail : this.pool)[Math.floor(Math.random() * (avail.length ? avail.length : this.pool.length))];
+      this.usedLabels.push(label);
+      if (this.usedLabels.length > this.pool.length) this.usedLabels.shift();
+      const card = { label, col: 0, x: 0, targetX: 0, done: false, doneAt: 0 };
+      this.positionCard(card);
+      this.cards.push(card);
+    },
+    update(dt) {
+      this.elapsed += dt;
+      if (this.elapsed >= this.nextAt) {
+        this.elapsed = 0;
+        this.nextAt = 1500 + Math.random() * 700;
+        let advanced = false;
+        for (const card of this.cards) {
+          if (!card.done && card.col < this.labels.length - 1) {
+            card.col++;
+            this.positionCard(card);
+            if (card.col === this.labels.length - 1) { card.done = true; card.doneAt = 0; }
+            advanced = true;
+            break;
+          }
+        }
+        if (!advanced && this.cards.length < 3) this.spawn();
+        else if (Math.random() < 0.5 && this.cards.length < 3) this.spawn();
+      }
+      this.cards.forEach((c) => { c.x += (c.targetX - c.x) * Math.min(1, dt / 260); if (c.done) c.doneAt += dt; });
+      this.cards = this.cards.filter((c) => !(c.done && c.doneAt > 1600));
+      if (this.cards.length === 0) this.spawn();
+    },
+    draw() {
+      panelBG(0, bandTop, width, bandHeight, 8);
+      const headerY = bandTop + 14;
+      mono(isMobile ? 9.5 : 10.5);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      this.cols.forEach((col, i) => {
+        ctx.fillStyle = `rgba(${COL_DIM}, 0.8)`;
+        ctx.fillText(col.label.toUpperCase(), col.x + col.w / 2, headerY);
+        if (i > 0) {
+          ctx.strokeStyle = 'rgba(91,143,176,0.14)';
+          ctx.beginPath(); ctx.moveTo(col.x, bandTop + 8); ctx.lineTo(col.x, bandTop + bandHeight - 8); ctx.stroke();
+        }
+      });
+
+      const cardY = bandTop + bandHeight / 2 - 2;
+      this.cards.forEach((card) => {
+        const w = isMobile ? 92 : 128, h = 40;
+        const x = card.x - w / 2, y = cardY - h / 2;
+        drawPanel(x, y, w, h, 6);
+        ctx.fillStyle = card.done ? `rgba(${COL_GREEN}, 0.12)` : 'rgba(28,35,48,0.92)';
+        ctx.fill();
+        ctx.strokeStyle = card.done ? `rgba(${COL_GREEN}, 0.5)` : 'rgba(91,143,176,0.35)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        mono(isMobile ? 9 : 9.5);
+        ctx.fillStyle = `rgba(${COL_TEXT}, 0.9)`;
+        ctx.textAlign = 'center';
+        const words = card.label.split(' ');
+        const line1 = words.slice(0, Math.ceil(words.length / 2)).join(' ');
+        const line2 = words.slice(Math.ceil(words.length / 2)).join(' ');
+        ctx.fillText(line1, card.x, y + 8);
+        ctx.fillText(line2, card.x, y + 20);
+
+        const dotY = y + h - 7;
+        this.labels.forEach((_, i) => {
+          const dx = card.x - (this.labels.length - 1) * 5 + i * 10;
+          ctx.beginPath();
+          ctx.arc(dx, dotY, 2, 0, Math.PI * 2);
+          ctx.fillStyle = i <= card.col ? `rgba(${COL_STEEL}, 0.9)` : 'rgba(91,143,176,0.25)';
+          ctx.fill();
+        });
+
+        if (card.done) {
+          mono(11);
+          ctx.fillStyle = `rgba(${COL_GREEN}, ${Math.max(0, 1 - card.doneAt / 1600)})`;
+          ctx.fillText('✓', card.x, y - 12);
+        }
+      });
+    }
+  };
+
+  // -------------------------------------------------------------------
+  // 6. CLOUD & AUTOMATION — scrolling Azure CLI terminal session.
+  // -------------------------------------------------------------------
+  const CLOUD = {
+    sessions: [
+      { cmd: 'az login --identity', out: [{ t: 'Logged in as jcalleon@ops.onmicrosoft.com' }] },
+      { cmd: "az vm list -d -o table --query \"[?powerState=='VM running']\"", out: [
+        { t: 'Name      ResourceGroup   PowerState' },
+        { t: 'web-01    prod-rg         VM running' }
+      ]},
+      { cmd: 'az group create -n dr-rg -l westus2', out: [{ t: 'Provisioning state: Succeeded', c: COL_GREEN }] },
+      { cmd: 'az aks get-credentials -n prod-aks -g prod-rg', out: [{ t: 'Merged "prod-aks" as current context' }] },
+      { cmd: 'az monitor metrics list --resource web-01 --metric "Percentage CPU"', out: [
+        { t: 'average: 34.2%' },
+        { t: 'threshold ok', c: COL_GREEN }
+      ]},
+      { cmd: 'az policy state trigger-scan --resource-group prod-rg', out: [{ t: '0 non-compliant resources', c: COL_GREEN }] }
+    ],
+    lines: [], pending: [], elapsed: 0, lastIdx: -1,
+    build() { this.lines = []; this.pending = []; this.elapsed = 0; this.lastIdx = -1; },
+    queueNext() {
+      let idx;
+      do { idx = Math.floor(Math.random() * this.sessions.length); } while (idx === this.lastIdx && this.sessions.length > 1);
+      this.lastIdx = idx;
+      const s = this.sessions[idx];
+      let at = this.elapsed + 900 + Math.random() * 600;
+      this.pending.push({ text: '$ ' + s.cmd, color: COL_STEEL, at, bold: true });
+      at += 480 + Math.random() * 260;
+      s.out.forEach((line) => {
+        this.pending.push({ text: '  ' + line.t, color: line.c || COL_DIM, at });
+        at += 220 + Math.random() * 180;
+      });
+    },
+    update(dt) {
+      this.elapsed += dt;
+      if (this.pending.length === 0) this.queueNext();
+      const capacity = Math.max(3, Math.floor((bandHeight - 44) / (isMobile ? 16 : 18)));
+      while (this.pending.length && this.pending[0].at <= this.elapsed) {
+        const item = this.pending.shift();
+        this.lines.push(item);
+        if (this.lines.length > capacity) this.lines.shift();
+        this.slideAnim = 1;
+      }
+      this.slideAnim = Math.max(0, (this.slideAnim || 0) - dt / 220);
+    },
+    draw() {
+      panelBG(0, bandTop, width, bandHeight, 8);
+      const padX = 14;
+      mono(10.5);
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillStyle = `rgba(${COL_DIM}, 0.6)`;
+      ctx.fillText('jcalleon@cloud-shell:~', width - padX, bandTop + 10);
+      ctx.textAlign = 'left';
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, bandTop + 30, width, bandHeight - 34);
+      ctx.clip();
+      const lineH = isMobile ? 16 : 18;
+      mono(isMobile ? 10.5 : 11.5);
+      const slide = (this.slideAnim || 0) * lineH;
+      this.lines.forEach((line, i) => {
+        const ly = bandTop + 34 + i * lineH + slide;
+        ctx.fillStyle = `rgba(${line.color}, ${line.bold ? 0.95 : 0.8})`;
+        ctx.fillText(line.text, padX, ly);
+      });
+      if (this.lines.length && Math.sin(elapsed * 0.006) > 0) {
+        const last = this.lines[this.lines.length - 1];
+        const lastY = bandTop + 34 + (this.lines.length - 1) * lineH + slide;
+        const tw = ctx.measureText(last.text).width;
+        ctx.fillStyle = `rgba(${COL_TEXT}, 0.8)`;
+        ctx.fillRect(padX + tw + 4, lastY + 2, 6, lineH - 5);
+      }
+      ctx.restore();
+    }
+  };
+
+  const MODULES = {
+    cybersecurity: IR,
+    networking: NET,
+    infrastructure: INFRA,
+    helpdesk: HD,
+    projectmanagement: PM,
+    cloud: CLOUD
+  };
+
+  function activeModule() {
+    const key = window.__activeLens;
+    return MODULES[key] || IR;
+  }
+
+  function step(now) {
+    const dt = Math.min(64, now - lastTime);
+    lastTime = now;
+    elapsed += dt;
     ctx.clearRect(0, 0, width, height);
-
-    const amp = Math.min(bandHeight * 0.32, 10);
-    drawWave(0, amp, LINE_DIM, 1, 0.012, 0);
-    drawWave(0, amp * 0.7, LINE, 1.2, 0.012, Math.PI / 3);
-
-    if (!reduceMotion) phase += 0.025;
-
-    rafId = requestAnimationFrame(step);
+    const mod = activeModule();
+    mod.update(dt);
+    mod.draw();
+    if (!reduceMotion) rafId = requestAnimationFrame(step);
   }
 
   function init() {
     resize();
     measureBand();
+    Object.keys(MODULES).forEach((k) => MODULES[k].build());
     if (rafId) cancelAnimationFrame(rafId);
+    lastTime = performance.now();
     if (!reduceMotion) {
-      step();
+      rafId = requestAnimationFrame(step);
     } else {
       ctx.clearRect(0, 0, width, height);
-      const amp = Math.min(bandHeight * 0.32, 10);
-      drawWave(0, amp, LINE_DIM, 1, 0.012, 0);
+      const mod = activeModule();
+      mod.update(16);
+      mod.draw();
     }
   }
 
@@ -2330,8 +2903,11 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
   });
 
   init();
-})();
 
+  if (window.document && document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => { resize(); measureBand(); }).catch(() => {});
+  }
+})();
 // ===========================================================================
 // NAV SCROLL-SPY — highlights whichever section is currently in view.
 // Uses IntersectionObserver rather than a manual scroll-position calculation:
