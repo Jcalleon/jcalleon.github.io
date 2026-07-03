@@ -901,7 +901,10 @@ section {
 }
 
 .lab .section-head {
-  margin-bottom: 88px;
+  /* Enough room for the wide terminal panel between the heading and the
+     card grid — it needs real height to show several lines, not just a
+     thin strip. */
+  margin-bottom: 200px;
 }
 
 .pipeline-canvas {
@@ -913,25 +916,6 @@ section {
   z-index: 0;
   opacity: 1;
   pointer-events: none;
-}
-
-.pipeline-labels {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.pipeline-label {
-  position: absolute;
-  transform: translate(-50%, 0);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
-  white-space: nowrap;
 }
 
 .lab .section-head,
@@ -1465,6 +1449,7 @@ section {
   .network-canvas { mask-image: linear-gradient(to bottom, black 0%, black 14%, transparent 30%); }
   .exposure-canvas, .exposure-labels { mask-image: linear-gradient(to bottom, transparent 0%, transparent 5%, black 7%, black 9%, transparent 11%); }
   section { padding: 64px 20px; }
+  .lab .section-head { margin-bottom: 150px; }
   .readout-grid { grid-template-columns: 1fr 1fr; }
   .readout-value { font-size: 24px; }
   .comp-grid { grid-template-columns: 1fr; }

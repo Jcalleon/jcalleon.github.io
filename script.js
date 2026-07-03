@@ -1297,10 +1297,11 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
 })();
 
 // ===========================================================================
-// BUILD PIPELINE ANIMATION — small blocks moving through CI/CD stages
-// (build -> test -> deploy), flashing on completion. Lives in the gap
-// between the section subtitle and the lab-grid cards. Text labels are
-// real HTML (not canvas fillText) to stay clear of fingerprinting blocks.
+// TERMINAL LOG ANIMATION — a wide, full-width fake terminal window that
+// scrolls through realistic commands (and their output) pulled from
+// Jacob's actual toolkit areas: bash, PowerShell, Terraform, Ansible,
+// Azure CLI, Python, Qualys. Lives in the gap between the section subtitle
+// and the lab-grid cards, spanning the full section width.
 // ===========================================================================
 (function () {
   const canvas = document.getElementById('pipeline-canvas');
@@ -1310,17 +1311,92 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
   const ctx = canvas.getContext('2d');
 
   let width, height, dpr;
-  let stages = [];
-  let blocks = [];
   let rafId = null;
   let bandTop = 0, bandHeight = 60;
+  let lineHeight = 19;
+  let capacity = 5;
+  let titlebarH = 27;
+  let padX = 16, padTop = 10;
 
-  const LINE = 'rgba(91, 143, 176, 0.35)';
-  const STAGE_FILL = 'rgba(28, 35, 48, 0.9)';
-  const STAGE_STROKE = 'rgba(91, 143, 176, 0.4)';
-  const BLOCK = 'rgba(140, 185, 218, 0.9)';
-  const BLOCK_DONE = 'rgba(63, 182, 140, 0.95)';
-  const BLOCK_GLOW = 'rgba(63, 182, 140, 0.4)';
+  const COL_STEEL = '145, 190, 220';
+  const COL_DIM   = '139, 148, 163';
+  const COL_GREEN = '63, 182, 140';
+  const COL_AMBER = '240, 169, 60';
+  const COL_TEXT  = '230, 232, 235';
+
+  // Realistic command + output sessions pulled from Jacob's actual toolkit
+  // areas (matches the seven repos + labs listed just below this band).
+  const SESSIONS = [
+    { prompt: '$ ', cmd: './harden.sh --profile cis-l1 --dry-run', out: [
+      { t: '[INFO] Loaded 42 CIS controls' },
+      { t: '[OK]  38 passed, 4 flagged for remediation', c: COL_GREEN },
+      { t: '[DONE] Hardening pass complete in 4.2s', c: COL_GREEN }
+    ]},
+    { prompt: 'PS> ', cmd: 'Invoke-VulnRemediation -Target 10.0.4.0/24 -Validate', out: [
+      { t: 'Scanning 214 hosts...' },
+      { t: '[OK] 5,014 findings validated', c: COL_GREEN },
+      { t: 'Remediation confirmed on 198/214 hosts' }
+    ]},
+    { prompt: '$ ', cmd: 'terraform plan -out=tfplan', out: [
+      { t: 'Refreshing state... [id=vnet-prod-01]' },
+      { t: 'Plan: 3 to add, 1 to change, 0 to destroy' },
+      { t: 'Saved the plan to: tfplan', c: COL_GREEN }
+    ]},
+    { prompt: '$ ', cmd: 'ansible-playbook site.yml --check --diff', out: [
+      { t: 'PLAY [Harden Linux fleet] ****************' },
+      { t: 'TASK [Ensure SSH key auth only] *** ok' },
+      { t: 'PLAY RECAP *** ok=42 changed=6 failed=0', c: COL_GREEN }
+    ]},
+    { prompt: '$ ', cmd: 'az vm list --query "[?powerState==\'running\']" -o table', out: [
+      { t: 'Name        ResourceGroup    Location' },
+      { t: 'web-01      prod-rg          eastus' },
+      { t: '3 resources returned' }
+    ]},
+    { prompt: '$ ', cmd: 'python3 siem_ingest.py --source splunk --since 24h', out: [
+      { t: 'Pulled 18,204 events' },
+      { t: '[WARN] 12 anomalies flagged for review', c: COL_AMBER },
+      { t: 'Report written to ./out/daily.json' }
+    ]},
+    { prompt: 'C:\\> ', cmd: 'netstat -ano | findstr LISTENING', out: [
+      { t: 'TCP    0.0.0.0:443     LISTENING    4021' },
+      { t: 'TCP    0.0.0.0:3389    LISTENING    1120' }
+    ]},
+    { prompt: '$ ', cmd: 'qualys-api scan --asset-group prod --report vmdr', out: [
+      { t: 'Scan queued: QID-88213' },
+      { t: '[OK] 100K+ assets in scope', c: COL_GREEN },
+      { t: 'Report available at /reports/vmdr_2026.pdf' }
+    ]},
+    { prompt: '$ ', cmd: 'crowdstrike-cli detections list --severity high', out: [
+      { t: '0 active high-severity detections', c: COL_GREEN },
+      { t: 'Fleet status: green', c: COL_GREEN }
+    ]},
+    { prompt: 'PS> ', cmd: 'Get-ADUser -Filter {Enabled -eq $false} | Measure', out: [
+      { t: 'Count: 3' },
+      { t: 'Stale accounts flagged for offboarding', c: COL_AMBER }
+    ]}
+  ];
+
+  let lines = [];        // currently visible {text, color}
+  let pending = [];       // queued {text, color, at} waiting to reveal
+  let elapsed = 0;
+  let lastSessionIdx = -1;
+  let scrollAnim = 0;     // 1 right after a new line lands, eases to 0
+
+  function queueNextSession() {
+    let idx;
+    do { idx = Math.floor(Math.random() * SESSIONS.length); }
+    while (idx === lastSessionIdx && SESSIONS.length > 1);
+    lastSessionIdx = idx;
+    const s = SESSIONS[idx];
+
+    let at = elapsed + 900 + Math.random() * 700;
+    pending.push({ text: s.prompt + s.cmd, color: COL_STEEL, at, bold: true });
+    at += 500 + Math.random() * 260;
+    s.out.forEach((line) => {
+      pending.push({ text: '  ' + line.t, color: line.c || COL_DIM, at });
+      at += 230 + Math.random() * 200;
+    });
+  }
 
   function resize() {
     const rect = canvas.parentElement.getBoundingClientRect();
@@ -1342,142 +1418,133 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     const headBottom = headEl ? headEl.getBoundingClientRect().bottom - sectionTop : 200;
     const gridTop = gridEl ? gridEl.getBoundingClientRect().top - sectionTop : 280;
 
-    // Centered in the gap between heading and card grid, not pinned right
-    // up against the heading. minMargin keeps real breathing room on both
-    // sides even when the gap is tight; idealHeight caps how tall the
-    // band gets when there's plenty of room, so it reads as a neat
-    // centered strip rather than stretching to fill the whole space.
-    const minMargin = 28;
-    const idealHeight = 56;
-    const gapAvailable = Math.max(16, gridTop - headBottom);
-    bandHeight = Math.min(idealHeight, Math.max(16, gapAvailable - minMargin * 2));
+    // Centered in the gap between heading and card grid, with real
+    // breathing room on both sides (minMargin) and capped height
+    // (idealHeight) so it reads as a neat panel rather than stretching.
+    const isMobile = width < 640;
+    const minMargin = isMobile ? 20 : 28;
+    const idealHeight = isMobile ? 118 : 168;
+    const gapAvailable = Math.max(40, gridTop - headBottom);
+    bandHeight = Math.min(idealHeight, Math.max(40, gapAvailable - minMargin * 2));
     const freeSpace = gapAvailable - bandHeight;
     const topMargin = Math.max(minMargin, freeSpace / 2);
     bandTop = headBottom + topMargin;
+
+    lineHeight = isMobile ? 17 : 19;
+    titlebarH = isMobile ? 24 : 27;
+    padX = isMobile ? 12 : 16;
+    padTop = isMobile ? 8 : 10;
+    capacity = Math.max(2, Math.floor((bandHeight - titlebarH - padTop * 2) / lineHeight));
   }
 
-  function buildStages() {
-    measureBand();
-    const isMobile = width < 640;
-    const labels = isMobile ? ['build', 'test', 'ship'] : ['build', 'test', 'scan', 'deploy'];
-    const margin = isMobile ? 24 : 60;
-    const usable = width - margin * 2;
-    const stageW = usable / labels.length;
-    stages = labels.map((label, i) => ({
-      label,
-      x: margin + stageW * i,
-      width: stageW,
-      y: bandTop,
-      height: bandHeight
-    }));
+  function drawFrame() {
+    const x = 0, y = bandTop, w = width, h = bandHeight;
+    const r = 8;
 
-    blocks = [];
-    const blockCount = isMobile ? 3 : 5;
-    for (let i = 0; i < blockCount; i++) {
-      blocks.push({
-        progress: Math.random(),
-        speed: 0.0009 + Math.random() * 0.0007,
-        lane: Math.random() * 0.6 + 0.2
-      });
-    }
-  }
-
-  function drawStageBox(stage) {
-    ctx.fillStyle = STAGE_FILL;
-    ctx.strokeStyle = STAGE_STROKE;
-    ctx.lineWidth = 0.5;
-    const pad = 6;
-    const x = stage.x + pad;
-    const w = stage.width - pad * 2;
+    ctx.save();
     ctx.beginPath();
-    ctx.roundRect ? ctx.roundRect(x, stage.y, w, stage.height, 6) : ctx.rect(x, stage.y, w, stage.height);
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+    ctx.fillStyle = 'rgba(13, 17, 23, 0.82)';
     ctx.fill();
-    ctx.stroke();
-  }
-
-  let stageLabelEls = [];
-
-  function step() {
-    ctx.clearRect(0, 0, width, height);
-
-    // connecting line through stage centers
-    ctx.beginPath();
-    ctx.moveTo(stages[0].x + 6, bandTop + bandHeight / 2);
-    ctx.lineTo(stages[stages.length - 1].x + stages[stages.length - 1].width - 6, bandTop + bandHeight / 2);
-    ctx.strokeStyle = LINE;
+    ctx.strokeStyle = 'rgba(91, 143, 176, 0.22)';
     ctx.lineWidth = 1;
     ctx.stroke();
+    ctx.restore();
 
-    stages.forEach(drawStageBox);
+    // Title bar
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, titlebarH, [r, r, 0, 0]); else ctx.rect(x, y, w, titlebarH);
+    ctx.fillStyle = 'rgba(22, 27, 34, 0.92)';
+    ctx.fill();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(91, 143, 176, 0.18)';
+    ctx.beginPath();
+    ctx.moveTo(x, y + titlebarH - 0.5);
+    ctx.lineTo(x + w, y + titlebarH - 0.5);
+    ctx.stroke();
+    ctx.restore();
 
-    blocks.forEach(b => {
-      if (!reduceMotion) b.progress += b.speed;
-      if (b.progress > 1.08) {
-        b.progress = -0.08;
-        b.lane = Math.random() * 0.6 + 0.2;
-      }
-      const totalX = stages[0].x + 6 + (b.progress) * (stages[stages.length - 1].x + stages[stages.length - 1].width - 6 - (stages[0].x + 6));
-      const y = bandTop + bandHeight * b.lane;
-      const inFinalStage = b.progress > (stages.length - 1) / stages.length;
-      const color = inFinalStage ? BLOCK_DONE : BLOCK;
-
-      if (inFinalStage) {
-        const grad = ctx.createRadialGradient(totalX, y, 0, totalX, y, 9);
-        grad.addColorStop(0, BLOCK_GLOW);
-        grad.addColorStop(1, 'rgba(63, 182, 140, 0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(totalX, y, 9, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
+    const dotR = 4, dotGap = 14, dotY = y + titlebarH / 2;
+    const dotColors = ['rgba(240,106,92,0.85)', 'rgba(240,169,60,0.85)', `rgba(${COL_GREEN}, 0.85)`];
+    dotColors.forEach((c, i) => {
       ctx.beginPath();
-      ctx.arc(totalX, y, 3, 0, Math.PI * 2);
-      ctx.fillStyle = color;
+      ctx.arc(x + padX + i * dotGap, dotY, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = c;
       ctx.fill();
     });
 
-    rafId = requestAnimationFrame(step);
+    ctx.font = `11px "JetBrains Mono", monospace`;
+    ctx.fillStyle = `rgba(${COL_DIM}, 0.7)`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'right';
+    ctx.fillText('jcalleon@ops:~', x + w - padX, dotY);
+    ctx.textAlign = 'left';
   }
 
-  function createStageLabels() {
-    let container = document.getElementById('pipeline-labels');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'pipeline-labels';
-      container.className = 'pipeline-labels';
-      canvas.parentElement.insertBefore(container, canvas.nextSibling);
+  function drawLines() {
+    const x = 0, y = bandTop, w = width, h = bandHeight;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y + titlebarH, w, h - titlebarH);
+    ctx.clip();
+
+    ctx.font = `${lineHeight === 17 ? 12 : 13}px "JetBrains Mono", monospace`;
+    ctx.textBaseline = 'top';
+
+    const slide = scrollAnim * lineHeight;
+    lines.forEach((line, i) => {
+      const ly = y + titlebarH + padTop + i * lineHeight + slide;
+      ctx.fillStyle = `rgba(${line.color}, ${line.bold ? 0.95 : 0.82})`;
+      ctx.fillText(line.text, x + padX, ly);
+    });
+
+    // Blinking cursor after the newest line
+    if (lines.length && Math.sin(elapsed * 0.006) > 0) {
+      const last = lines[lines.length - 1];
+      const lastY = y + titlebarH + padTop + (lines.length - 1) * lineHeight + slide;
+      const tw = ctx.measureText(last.text).width;
+      ctx.fillStyle = `rgba(${COL_TEXT}, 0.8)`;
+      ctx.fillRect(x + padX + tw + 4, lastY + 1, 6, lineHeight - 5);
     }
-    container.innerHTML = '';
-    stageLabelEls = stages.map(stage => {
-      const el = document.createElement('span');
-      el.className = 'pipeline-label';
-      el.textContent = stage.label;
-      container.appendChild(el);
-      return el;
-    });
+
+    ctx.restore();
   }
 
-  function positionStageLabels() {
-    stages.forEach((stage, i) => {
-      const el = stageLabelEls[i];
-      if (!el) return;
-      el.style.left = (stage.x + stage.width / 2) + 'px';
-      el.style.top = (stage.y - 14) + 'px';
-    });
+  function step(dt) {
+    elapsed += dt;
+
+    if (pending.length === 0) queueNextSession();
+    while (pending.length && pending[0].at <= elapsed) {
+      const item = pending.shift();
+      lines.push(item);
+      if (lines.length > capacity) lines.shift();
+      scrollAnim = 1;
+    }
+    scrollAnim = Math.max(0, scrollAnim - dt / 220);
+
+    ctx.clearRect(0, 0, width, height);
+    drawFrame();
+    drawLines();
+  }
+
+  let lastTime = performance.now();
+  function raf(now) {
+    const dt = Math.min(64, now - lastTime);
+    lastTime = now;
+    step(dt);
+    if (!reduceMotion) rafId = requestAnimationFrame(raf);
   }
 
   function init() {
     resize();
-    buildStages();
-    createStageLabels();
-    positionStageLabels();
+    measureBand();
     if (rafId) cancelAnimationFrame(rafId);
+    lastTime = performance.now();
     if (!reduceMotion) {
-      step();
+      rafId = requestAnimationFrame(raf);
     } else {
-      ctx.clearRect(0, 0, width, height);
-      stages.forEach(drawStageBox);
+      step(16);
     }
   }
 
@@ -1493,11 +1560,11 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
   // moment init() runs — but the Google Fonts <link> in <head> loads
   // asynchronously, and the heading swapping from its fallback font to
   // Space Grotesk/Inter afterward changes its rendered height. That
-  // reflow doesn't fire a 'resize' event, so the pipeline band's cached
+  // reflow doesn't fire a 'resize' event, so the terminal band's cached
   // position goes stale and can end up overlapping the heading text.
   // Re-measuring once fonts are actually ready fixes it at the source.
   if (window.document && document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(() => init()).catch(() => {});
+    document.fonts.ready.then(() => { resize(); measureBand(); }).catch(() => {});
   }
 })();
 
