@@ -1480,6 +1480,17 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
   });
 
   init();
+
+  // measureBand() reads real layout via getBoundingClientRect() at the
+  // moment init() runs — but the Google Fonts <link> in <head> loads
+  // asynchronously, and the heading swapping from its fallback font to
+  // Space Grotesk/Inter afterward changes its rendered height. That
+  // reflow doesn't fire a 'resize' event, so the pipeline band's cached
+  // position goes stale and can end up overlapping the heading text.
+  // Re-measuring once fonts are actually ready fixes it at the source.
+  if (window.document && document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => init()).catch(() => {});
+  }
 })();
 
 // ===========================================================================
