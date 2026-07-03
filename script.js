@@ -1341,11 +1341,19 @@ document.querySelectorAll('[data-credly-pending]').forEach(el => {
     const sectionTop = sectionEl.getBoundingClientRect().top;
     const headBottom = headEl ? headEl.getBoundingClientRect().bottom - sectionTop : 200;
     const gridTop = gridEl ? gridEl.getBoundingClientRect().top - sectionTop : 280;
-    const margin = 10;
-    bandTop = headBottom + margin;
-    // Never let the band exceed the actual available gap, even if that
-    // means a thinner-than-ideal strip.
-    bandHeight = Math.max(16, gridTop - bandTop - margin);
+
+    // Centered in the gap between heading and card grid, not pinned right
+    // up against the heading. minMargin keeps real breathing room on both
+    // sides even when the gap is tight; idealHeight caps how tall the
+    // band gets when there's plenty of room, so it reads as a neat
+    // centered strip rather than stretching to fill the whole space.
+    const minMargin = 28;
+    const idealHeight = 56;
+    const gapAvailable = Math.max(16, gridTop - headBottom);
+    bandHeight = Math.min(idealHeight, Math.max(16, gapAvailable - minMargin * 2));
+    const freeSpace = gapAvailable - bandHeight;
+    const topMargin = Math.max(minMargin, freeSpace / 2);
+    bandTop = headBottom + topMargin;
   }
 
   function buildStages() {
